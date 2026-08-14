@@ -1,17 +1,16 @@
-import { logOut } from "../services/auth.service.js";
+import RecentActivity from "../components/dashboard/RecentActivity";
+import StatsCards from "../components/dashboard/StatsCards";
+import WelcomeCard from "../components/dashboard/WelcomeCard";
+import DashboardLayout from "../layouts/DashboardLayout";
 
 export default function Dashboard() {
-  const handleLogout = async () => {
-    try {
-      await logOut();
-    } catch (err) {
-      console.log(err);
-    }
-  };
   return (
-    <div>
-      <h1>Dashboard</h1>
-      <button onClick={handleLogout}>Logout</button>
-    </div>
+    <DashboardLayout title={"Dashboard"}>
+      <div className="space-y-6">
+        <WelcomeCard />
+        <StatsCards />
+        <RecentActivity />
+      </div>
+    </DashboardLayout>
   );
 }

@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import authRoutes from "./routes/auth.routes.js";
+import WorkerRoutes from "./routes/worker.routes.js";
 import { errorHandler } from "./middleware/error.middleware.js";
 import { notFound } from "./middleware/notFound.middleware.js";
 
@@ -17,6 +18,8 @@ app.get("/api/health", (req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+
+app.use("/api/workers", WorkerRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

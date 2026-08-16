@@ -65,6 +65,7 @@ export default function Sidebar() {
             <NavLink
               key={item.name}
               to={item.path}
+              end={item.path === "/dashboard"}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-4 py-3 w-full rounded-xl transition-all duration-200 ${isActive ? "bg-indigo-600 text-white" : "text-slate-300 hover:bg-slate-800 hover:text-white"}`
               }

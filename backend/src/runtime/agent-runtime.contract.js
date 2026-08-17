@@ -26,9 +26,15 @@
  */
 
 /**
+ * @typedef {Object} ModelMessage
+ * @property {"system"|"user"|"assistant"} role
+ * @property {string} content
+ */
+
+/**
  * @typedef {Object} ModelRequest
  * @property {string} model
- * @property {string} prompt
+ * @property {ModelMessage[]} messages
  * @property {Object} [configuration]
  */
 

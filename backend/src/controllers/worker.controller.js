@@ -189,3 +189,21 @@ export async function deleteWorker(req, res, next) {
     next(err);
   }
 }
+
+export async function runWorker(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { input } = req.body;
+
+    return res.status(200).json({
+      success: true,
+      message: "Worker execution request accepted.",
+      data: {
+        workerId: id,
+        input,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+}

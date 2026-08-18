@@ -6,6 +6,7 @@ import {
   getWorkerById,
   getWorkers,
   updateWorker,
+  runWorker,
 } from "../controllers/worker.controller.js";
 import { validate } from "../middleware/validate.middleware.js";
 import {
@@ -13,6 +14,7 @@ import {
   updateWorkerSchema,
   workerIdSchema,
 } from "../validators/worker.validator.js";
+import { workerExecutionSchema } from "../validators/worker-execution.validator.js";
 
 const router = express.Router();
 
@@ -25,5 +27,7 @@ router.get("/:id", protect, validate(workerIdSchema), getWorkerById);
 router.put("/:id", protect, validate(updateWorkerSchema), updateWorker);
 
 router.delete("/:id", protect, validate(workerIdSchema), deleteWorker);
+
+router.post("/:id/run", protect, validate(workerExecutionSchema), runWorker);
 
 export default router;

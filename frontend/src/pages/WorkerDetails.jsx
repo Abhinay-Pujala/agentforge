@@ -5,6 +5,9 @@ import {
   Calendar,
   Clock,
   Edit,
+  Loader2,
+  Play,
+  Send,
   Settings2,
   Trash2,
 } from "lucide-react";
@@ -14,6 +17,7 @@ import {
   getWorkerById,
   deleteWorker,
   updateWorkerStatus,
+  runWorker,
 } from "../services/worker.service";
 
 export default function WorkerDetails() {
@@ -25,6 +29,11 @@ export default function WorkerDetails() {
   const [error, setError] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+
+  const [executionInput, setExecutionInput] = useState("");
+  const [executionOutput, setExecutionOutput] = useState("");
+  const [executionError, setExecutionError] = useState("");
+  const [isExecuting, setIsExecuting] = useState(false);
 
   useEffect(() => {
     async function fetchWorker() {
@@ -76,6 +85,37 @@ export default function WorkerDetails() {
       );
     } finally {
       setIsDeleting(false);
+    }
+  }
+
+  async function handleRunWorker(event) {
+    event.preventDefault();
+
+    const input = executionInput.trim();
+
+    if (!input) {
+      setExecutionError("Please enter an input for the worker.");
+      return;
+    }
+
+    try {
+      setIsExecuting(true);
+      setExecutionError("");
+      setExecutionOutput("");
+
+      const result = await runWorker(worker._id, input);
+
+      setExecutionOutput(result.output || "");
+    } catch (error) {
+      console.error("Failed to run worker:", error);
+
+      setExecutionError(
+        error.response?.data?.message ||
+          error.message ||
+          "Failed to run worker.",
+      );
+    } finally {
+      setIsExecuting(false);
     }
   }
 
@@ -213,6 +253,92 @@ export default function WorkerDetails() {
               </button>
             </div>
           </div>
+        </section>
+
+        {/* Run Worker */}
+        <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+          <div className="mb-5 flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-white">Run Worker</h2>
+
+              <p className="mt-1 text-sm text-slate-400">
+                Send an input to this worker and view its response.
+              </p>
+            </div>
+
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/10">
+              <Play size={18} className="text-indigo-400" />
+            </div>
+          </div>
+
+          <form onSubmit={handleRunWorker} className="space-y-4">
+            <div>
+              <label
+                htmlFor="execution-input"
+                className="mb-2 block text-sm font-medium text-slate-200"
+              >
+                Input
+              </label>
+
+              <textarea
+                id="execution-input"
+                value={executionInput}
+                onChange={(event) => setExecutionInput(event.target.value)}
+                rows={5}
+                placeholder="Ask your worker something..."
+                disabled={isExecuting || worker.status !== "enabled"}
+                className="w-full resize-none rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm leading-6 text-white outline-none transition-all placeholder:text-slate-600 focus:border-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+              />
+            </div>
+
+            {executionError && (
+              <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+                {executionError}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between gap-4">
+              <p className="text-xs text-slate-500">
+                {worker.status === "enabled"
+                  ? "Worker is ready to execute."
+                  : "Enable this worker before running it."}
+              </p>
+
+              <button
+                type="submit"
+                disabled={
+                  isExecuting ||
+                  worker.status !== "enabled" ||
+                  !executionInput.trim()
+                }
+                className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+              >
+                {isExecuting ? (
+                  <>
+                    <Loader2 size={17} className="animate-spin" />
+                    Running...
+                  </>
+                ) : (
+                  <>
+                    <Send size={17} />
+                    Run Worker
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+
+          {executionOutput && (
+            <div className="mt-6 border-t border-slate-800 pt-6">
+              <h3 className="mb-3 text-sm font-semibold text-white">
+                Worker Response
+              </h3>
+
+              <div className="whitespace-pre-wrap rounded-xl bg-slate-950 p-5 text-sm leading-7 text-slate-300">
+                {executionOutput}
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Model + Configuration */}

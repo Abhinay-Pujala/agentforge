@@ -1,6 +1,7 @@
 import User from "../models/user.model.js";
 import Worker from "../models/worker.model.js";
 import { getWorkerExecutionContext } from "../services/worker-execution.service.js";
+import { createAgentRuntime } from "../runtime/runtime-instance.js";
 
 export async function createWorker(req, res, next) {
   try {
@@ -201,14 +202,18 @@ export async function runWorker(req, res, next) {
       id,
     );
 
+    const runtime = createAgentRuntime();
+
+    const result = await runtime.execute({
+      worker,
+      input,
+      context,
+    });
+
     return res.status(200).json({
       success: true,
-      message: "Worker execution context prepared.",
-      data: {
-        workerId: worker._id,
-        input,
-        context,
-      },
+      message: "Worker executed successfully.",
+      data: result,
     });
   } catch (err) {
     next(err);

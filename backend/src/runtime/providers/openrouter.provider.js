@@ -16,39 +16,65 @@ class OpenRouterProvider extends ModelProvider {
   async generate(request) {
     const { model, messages, configuration = {} } = request;
 
-    const response = await fetch(OPENROUTER_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        ...configuration,
-      }),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
 
-    const data = await response.json();
+    try {
+      const response = await fetch(OPENROUTER_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          ...configuration,
+        }),
+        signal: controller.signal,
+      });
 
-    if (!response.ok) {
-      throw new Error(data?.error?.message || "OpenRouter request failed");
+      const data = await response.json();
+
+      if (!response.ok) {
+        const error = new Error(
+          data?.error?.message || "OpenRouter request failed",
+        );
+
+        error.statusCode = response.status >= 500 ? 502 : response.status;
+
+        throw error;
+      }
+
+      const output = data?.choices?.[0]?.message?.content;
+
+      if (!output) {
+        const error = new Error("OpenRouter returned an empty response");
+        error.statusCode = 502;
+        throw error;
+      }
+
+      return {
+        output,
+        metadata: {
+          provider: "openrouter",
+          model: data.model || model,
+          usage: data.usage || null,
+        },
+      };
+    } catch (error) {
+      if (error.name === "AbortError") {
+        const timeoutError = new Error("Model provider request timed out.");
+
+        timeoutError.statusCode = 504;
+
+        throw timeoutError;
+      }
+
+      throw error;
+    } finally {
+      clearTimeout(timeout);
     }
-
-    const output = data?.choices?.[0]?.message?.content;
-
-    if (!output) {
-      throw new Error("OpenRouter returned an empty response");
-    }
-
-    return {
-      output,
-      metadata: {
-        provider: "openrouter",
-        model: data.model || model,
-        usage: data.usage || null,
-      },
-    };
   }
 }
 

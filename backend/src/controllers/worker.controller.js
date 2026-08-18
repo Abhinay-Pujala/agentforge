@@ -1,5 +1,6 @@
 import User from "../models/user.model.js";
 import Worker from "../models/worker.model.js";
+import { getWorkerExecutionContext } from "../services/worker-execution.service.js";
 
 export async function createWorker(req, res, next) {
   try {
@@ -195,12 +196,18 @@ export async function runWorker(req, res, next) {
     const { id } = req.params;
     const { input } = req.body;
 
+    const { worker, context } = await getWorkerExecutionContext(
+      req.firebaseUser.uid,
+      id,
+    );
+
     return res.status(200).json({
       success: true,
-      message: "Worker execution request accepted.",
+      message: "Worker execution context prepared.",
       data: {
-        workerId: id,
+        workerId: worker._id,
         input,
+        context,
       },
     });
   } catch (err) {

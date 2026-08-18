@@ -1,4 +1,5 @@
 import { buildPrompt } from "./prompt-builder.js";
+import { normalizeModelResponse } from "./model-response.js";
 
 /**
  * Generic Agent Runtime.
@@ -33,10 +34,12 @@ class AgentRuntime {
       configuration: worker.configuration || {},
     });
 
+    const normalizedResponse = normalizeModelResponse(modelResponse);
+
     return {
       success: true,
-      output: modelResponse.output,
-      metadata: modelResponse.metadata || {},
+      output: normalizedResponse.output,
+      metadata: normalizedResponse.metadata,
     };
   }
 }

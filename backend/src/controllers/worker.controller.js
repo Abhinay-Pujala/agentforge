@@ -2,6 +2,10 @@ import User from "../models/user.model.js";
 import Worker from "../models/worker.model.js";
 import { getWorkerExecutionContext } from "../services/worker-execution.service.js";
 import { createAgentRuntime } from "../runtime/runtime-instance.js";
+import {
+  createExecution,
+  updateExecutionStatus,
+} from "../services/execution.service.js";
 
 export async function createWorker(req, res, next) {
   try {
@@ -193,14 +197,30 @@ export async function deleteWorker(req, res, next) {
 }
 
 export async function runWorker(req, res, next) {
+  let execution;
+  let startedAt;
   try {
     const { id } = req.params;
     const { input } = req.body;
 
-    const { worker, context } = await getWorkerExecutionContext(
+    const { user, worker, context } = await getWorkerExecutionContext(
       req.firebaseUser.uid,
       id,
     );
+
+    execution = await createExecution(
+      user._id,
+      worker._id,
+      input,
+      worker.model,
+    );
+
+    startedAt = new Date();
+
+    await updateExecutionStatus(execution._id, {
+      status: "RUNNING",
+      startedAt,
+    });
 
     const runtime = createAgentRuntime();
 
@@ -210,12 +230,40 @@ export async function runWorker(req, res, next) {
       context,
     });
 
+    const completedAt = new Date();
+
+    await updateExecutionStatus(execution._id, {
+      status: "COMPLETED",
+      output: result.output,
+      startedAt,
+      completedAt,
+      durationMs: completedAt.getTime() - startedAt.getTime(),
+      usage: {
+        promptTokens: result.metadata?.usage?.prompt_tokens,
+        completionTokens: result.metadata?.usage?.completion_tokens,
+        totalTokens: result.metadata?.usage?.total_tokens,
+      },
+      cost: result.metadata?.usage?.cost,
+    });
+
     return res.status(200).json({
       success: true,
       message: "Worker executed successfully.",
       data: result,
     });
   } catch (err) {
+    const completedAt = new Date();
+    if (execution) {
+      await updateExecutionStatus(execution._id, {
+        status: err.statusCode === 504 ? "TIMEOUT" : "FAILED",
+        error: {
+          message: err.message,
+          code: err.statusCode || null,
+        },
+        completedAt,
+        durationMs: completedAt.getTime() - startedAt.getTime(),
+      });
+    }
     next(err);
   }
 }

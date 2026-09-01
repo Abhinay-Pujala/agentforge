@@ -1,7 +1,7 @@
 import {
   LayoutDashboard,
   Bot,
-  PlayCircle,
+  History,
   Wrench,
   Settings,
   LogOut,
@@ -26,8 +26,8 @@ export default function Sidebar() {
     },
     {
       name: "Runs",
-      path: "/dashboard/runs",
-      icon: PlayCircle,
+      path: "/dashboard/executions",
+      icon: History,
     },
     {
       name: "Tools",

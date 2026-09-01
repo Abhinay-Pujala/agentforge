@@ -8,6 +8,8 @@ import Workers from "./pages/Workers.jsx";
 import CreateWorker from "./pages/CreateWorker.jsx";
 import WorkerDetails from "./pages/WorkerDetails.jsx";
 import EditWorker from "./pages/EditWorker.jsx";
+import Executions from "./pages/Executions.jsx";
+import ExecutionDetails from "./pages/ExecutionDetails.jsx";
 
 export default function App() {
   return (
@@ -60,6 +62,22 @@ export default function App() {
           element={
             <ProtectedRoute>
               <EditWorker />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/executions"
+          element={
+            <ProtectedRoute>
+              <Executions />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/executions/:id"
+          element={
+            <ProtectedRoute>
+              <ExecutionDetails />
             </ProtectedRoute>
           }
         />

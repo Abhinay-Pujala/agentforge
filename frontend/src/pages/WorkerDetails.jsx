@@ -10,15 +10,20 @@ import {
   Send,
   Settings2,
   Trash2,
+  History,
+  CheckCircle2,
+  XCircle,
+  Timer,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
-import DashboardLayout from "../layouts/DashboardLayout";
+import DashboardLayout from "../layouts/DashboardLayout.jsx";
 import {
   getWorkerById,
   deleteWorker,
   updateWorkerStatus,
   runWorker,
-} from "../services/worker.service";
+} from "../services/worker.service.js";
+import { getExecutions } from "../services/execution.service.js";
 
 export default function WorkerDetails() {
   const navigate = useNavigate();
@@ -34,6 +39,10 @@ export default function WorkerDetails() {
   const [executionOutput, setExecutionOutput] = useState("");
   const [executionError, setExecutionError] = useState("");
   const [isExecuting, setIsExecuting] = useState(false);
+
+  const [executions, setExecutions] = useState([]);
+  const [isLoadingExecutions, setIsLoadingExecutions] = useState(false);
+  const [showAllExecutions, setShowAllExecutions] = useState(false);
 
   useEffect(() => {
     async function fetchWorker() {
@@ -58,7 +67,25 @@ export default function WorkerDetails() {
     }
 
     fetchWorker();
+    fetchExecutions();
   }, [id]);
+
+  async function fetchExecutions() {
+    try {
+      setIsLoadingExecutions(true);
+
+      const result = await getExecutions({
+        workerId: id,
+        limit: 10,
+      });
+
+      setExecutions(result.executions);
+    } catch (error) {
+      console.error("Failed to fetch execution history:", error);
+    } finally {
+      setIsLoadingExecutions(false);
+    }
+  }
 
   async function handleDelete() {
     const confirmed = window.confirm(
@@ -106,6 +133,7 @@ export default function WorkerDetails() {
       const result = await runWorker(worker._id, input);
 
       setExecutionOutput(result.output || "");
+      await fetchExecutions();
     } catch (error) {
       console.error("Failed to run worker:", error);
 
@@ -176,6 +204,10 @@ export default function WorkerDetails() {
   if (!worker) {
     return null;
   }
+
+  const displayedExecutions = showAllExecutions
+    ? executions
+    : executions.slice(0, 5);
 
   return (
     <DashboardLayout title="Worker Details">
@@ -338,6 +370,102 @@ export default function WorkerDetails() {
                 {executionOutput}
               </div>
             </div>
+          )}
+        </section>
+
+        {/* Execution History */}
+        <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-white">
+                Execution History
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-400">
+                Recent executions for this worker.
+              </p>
+            </div>
+
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/10">
+              <History size={18} className="text-indigo-400" />
+            </div>
+          </div>
+
+          {isLoadingExecutions ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 size={22} className="animate-spin text-indigo-400" />
+            </div>
+          ) : executions.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-700 py-10 text-center">
+              <History size={28} className="mx-auto mb-3 text-slate-600" />
+
+              <p className="text-sm text-slate-400">No executions yet.</p>
+
+              <p className="mt-1 text-xs text-slate-600">
+                Run this worker to see its execution history.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="space-y-3">
+                {displayedExecutions.map((execution) => (
+                  <div
+                    key={execution._id}
+                    className="flex flex-col gap-4 rounded-xl border border-slate-800 bg-slate-950 p-4 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        {execution.status === "COMPLETED" ? (
+                          <CheckCircle2
+                            size={18}
+                            className="shrink-0 text-emerald-400"
+                          />
+                        ) : execution.status === "FAILED" ||
+                          execution.status === "TIMEOUT" ? (
+                          <XCircle
+                            size={18}
+                            className="shrink-0 text-red-400"
+                          />
+                        ) : (
+                          <Timer
+                            size={18}
+                            className="shrink-0 text-yellow-400"
+                          />
+                        )}
+
+                        <span className="text-sm font-medium text-white">
+                          {execution.status}
+                        </span>
+                      </div>
+
+                      <p className="mt-2 truncate text-sm text-slate-400">
+                        {execution.input}
+                      </p>
+
+                      <p className="mt-2 text-xs text-slate-600">
+                        {new Date(execution.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+
+                    {execution.duration !== undefined &&
+                      execution.duration !== null && (
+                        <div className="text-sm text-slate-400">
+                          {execution.duration} ms
+                        </div>
+                      )}
+                  </div>
+                ))}
+              </div>
+              {executions.length > 5 && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllExecutions(!showAllExecutions)}
+                  className="mt-4 w-full rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-medium text-slate-300 transition-all hover:bg-slate-800 hover:text-white cursor-pointer"
+                >
+                  {showAllExecutions ? "Show less" : "View all executions"}
+                </button>
+              )}
+            </>
           )}
         </section>
 

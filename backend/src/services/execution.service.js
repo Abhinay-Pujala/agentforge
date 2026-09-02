@@ -29,6 +29,8 @@ export async function getExecutions({
   userId,
   workerId,
   status,
+  from,
+  to,
   page = 1,
   limit = 20,
 }) {
@@ -42,6 +44,18 @@ export async function getExecutions({
 
   if (status) {
     query.status = status;
+  }
+
+  if (from || to) {
+    query.createdAt = {};
+
+    if (from) {
+      query.createdAt.$gte = from;
+    }
+
+    if (to) {
+      query.createdAt.$lte = to;
+    }
   }
 
   const skip = (page - 1) * limit;

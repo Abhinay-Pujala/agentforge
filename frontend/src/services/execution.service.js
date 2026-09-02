@@ -20,6 +20,8 @@ async function getAuthHeaders() {
 export async function getExecutions({
   workerId,
   status,
+  from,
+  to,
   page = 1,
   limit = 20,
 } = {}) {
@@ -32,6 +34,8 @@ export async function getExecutions({
     params: {
       workerId,
       status,
+      from,
+      to,
       page,
       limit,
     },

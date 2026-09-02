@@ -3,6 +3,10 @@ import Worker from "../models/worker.model.js";
 import { getWorkerExecutionContext } from "../services/worker-execution.service.js";
 import { createAgentRuntime } from "../runtime/runtime-instance.js";
 import {
+  validateExecutionCost,
+  validateExecutionPolicy,
+} from "../runtime/execution-policy.js";
+import {
   createExecution,
   updateExecutionStatus,
 } from "../services/execution.service.js";
@@ -199,6 +203,7 @@ export async function deleteWorker(req, res, next) {
 export async function runWorker(req, res, next) {
   let execution;
   let startedAt;
+  let result;
   try {
     const { id } = req.params;
     const { input } = req.body;
@@ -207,6 +212,8 @@ export async function runWorker(req, res, next) {
       req.firebaseUser.uid,
       id,
     );
+
+    const executionPolicy = validateExecutionPolicy(worker);
 
     execution = await createExecution(
       user._id,
@@ -224,11 +231,16 @@ export async function runWorker(req, res, next) {
 
     const runtime = createAgentRuntime();
 
-    const result = await runtime.execute({
+    result = await runtime.execute({
       worker,
       input,
       context,
+      executionPolicy,
     });
+
+    const usage = result.metadata?.usage;
+
+    validateExecutionCost(usage?.cost);
 
     const completedAt = new Date();
 
@@ -239,11 +251,11 @@ export async function runWorker(req, res, next) {
       completedAt,
       durationMs: completedAt.getTime() - startedAt.getTime(),
       usage: {
-        promptTokens: result.metadata?.usage?.prompt_tokens,
-        completionTokens: result.metadata?.usage?.completion_tokens,
-        totalTokens: result.metadata?.usage?.total_tokens,
+        promptTokens: result.metadata?.usage?.prompt_tokens ?? null,
+        completionTokens: result.metadata?.usage?.completion_tokens ?? null,
+        totalTokens: result.metadata?.usage?.total_tokens ?? null,
       },
-      cost: result.metadata?.usage?.cost,
+      cost: result.metadata?.usage?.cost ?? null,
     });
 
     return res.status(200).json({
@@ -254,14 +266,25 @@ export async function runWorker(req, res, next) {
   } catch (err) {
     const completedAt = new Date();
     if (execution) {
+      const usage = result?.metadata?.usage;
+
       await updateExecutionStatus(execution._id, {
         status: err.statusCode === 504 ? "TIMEOUT" : "FAILED",
+        output: result?.output || null,
         error: {
           message: err.message,
-          code: err.statusCode || null,
+          code: err.code || err.statusCode || null,
         },
         completedAt,
-        durationMs: completedAt.getTime() - startedAt.getTime(),
+        durationMs: startedAt
+          ? completedAt.getTime() - startedAt.getTime()
+          : null,
+        usage: {
+          promptTokens: usage?.prompt_tokens ?? null,
+          completionTokens: usage?.completion_tokens ?? null,
+          totalTokens: usage?.total_tokens ?? null,
+        },
+        cost: usage?.cost ?? null,
       });
     }
     next(err);

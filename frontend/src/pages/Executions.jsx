@@ -15,6 +15,9 @@ export default function Executions() {
   const [workers, setWorkers] = useState([]);
   const [workerId, setWorkerId] = useState("");
 
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 10,
@@ -26,6 +29,8 @@ export default function Executions() {
     page = 1,
     selectedStatus = status,
     selectedWorkerId = workerId,
+    selectedFrom = from,
+    selectedTo = to,
   ) {
     try {
       setLoading(true);
@@ -36,6 +41,8 @@ export default function Executions() {
         limit: pagination.limit,
         status: selectedStatus || undefined,
         workerId: selectedWorkerId || undefined,
+        from: selectedFrom || undefined,
+        to: selectedTo || undefined,
       });
 
       setExecutions(result.executions);
@@ -136,6 +143,65 @@ export default function Executions() {
               ))}
             </select>
           </div>
+          <div>
+            <label
+              htmlFor="from"
+              className="mb-1 block text-xs font-medium text-slate-400"
+            >
+              From
+            </label>
+
+            <input
+              id="from"
+              type="date"
+              value={from}
+              max={to || undefined}
+              onChange={(e) => {
+                const newFrom = e.target.value;
+
+                setFrom(newFrom);
+                fetchExecutions(1, status, workerId, newFrom, to);
+              }}
+              className="cursor-pointer rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm text-white outline-none transition focus:border-indigo-500"
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="to"
+              className="mb-1 block text-xs font-medium text-slate-400"
+            >
+              To
+            </label>
+
+            <input
+              id="to"
+              type="date"
+              value={to}
+              min={from || undefined}
+              onChange={(e) => {
+                const newTo = e.target.value;
+
+                setTo(newTo);
+                fetchExecutions(1, status, workerId, from, newTo);
+              }}
+              className="cursor-pointer rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm text-white outline-none transition focus:border-indigo-500"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setStatus("");
+              setWorkerId("");
+              setFrom("");
+              setTo("");
+
+              fetchExecutions(1, "", "", "", "");
+            }}
+            className="mt-5 cursor-pointer rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:border-slate-600 hover:bg-slate-800 hover:text-white"
+          >
+            Clear Filters
+          </button>
         </div>
 
         {loading ? (
@@ -249,7 +315,15 @@ export default function Executions() {
                       <button
                         type="button"
                         disabled={pagination.page === 1}
-                        onClick={() => fetchExecutions(pagination.page - 1)}
+                        onClick={() =>
+                          fetchExecutions(
+                            pagination.page - 1,
+                            status,
+                            workerId,
+                            from,
+                            to,
+                          )
+                        }
                         className="cursor-pointer rounded-lg border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 transition hover:bg-slate-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         Previous
@@ -258,7 +332,15 @@ export default function Executions() {
                       <button
                         type="button"
                         disabled={pagination.page === pagination.totalPages}
-                        onClick={() => fetchExecutions(pagination.page + 1)}
+                        onClick={() =>
+                          fetchExecutions(
+                            pagination.page + 1,
+                            status,
+                            workerId,
+                            from,
+                            to,
+                          )
+                        }
                         className="cursor-pointer rounded-lg border border-slate-700 px-4 py-2 text-sm font-medium text-slate-300 transition hover:bg-slate-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         Next

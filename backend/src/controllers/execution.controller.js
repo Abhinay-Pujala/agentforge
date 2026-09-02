@@ -18,12 +18,14 @@ export async function getExecutionHistory(req, res, next) {
       });
     }
 
-    const { workerId, status, page, limit } = req.query;
+    const { workerId, status, from, to, page, limit } = req.query;
 
     const result = await getExecutions({
       userId: user._id,
       workerId,
       status,
+      from,
+      to,
       page: Number(page) || 1,
       limit: Number(limit) || 20,
     });

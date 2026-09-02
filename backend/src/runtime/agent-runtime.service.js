@@ -17,7 +17,7 @@ class AgentRuntime {
     this.modelProvider = modelProvider;
   }
 
-  async execute({ worker, input, context = {} }) {
+  async execute({ worker, input, context = {}, executionPolicy }) {
     if (!worker) {
       throw new Error("Worker is required");
     }
@@ -32,6 +32,7 @@ class AgentRuntime {
       model: worker.model,
       messages,
       configuration: worker.configuration || {},
+      executionPolicy,
     });
 
     const normalizedResponse = normalizeModelResponse(modelResponse);

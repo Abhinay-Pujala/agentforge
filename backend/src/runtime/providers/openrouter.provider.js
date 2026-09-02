@@ -14,10 +14,15 @@ class OpenRouterProvider extends ModelProvider {
   }
 
   async generate(request) {
-    const { model, messages, configuration = {} } = request;
+    const { model, messages, configuration = {}, executionPolicy } = request;
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30_000);
+
+    const timeoutMs = executionPolicy?.timeoutMs ?? 30_000;
+
+    const timeout = setTimeout(() => {
+      controller.abort();
+    }, timeoutMs);
 
     try {
       const response = await fetch(OPENROUTER_URL, {
@@ -30,6 +35,7 @@ class OpenRouterProvider extends ModelProvider {
           model,
           messages,
           ...configuration,
+          max_tokens: executionPolicy?.maxTokens,
         }),
         signal: controller.signal,
       });

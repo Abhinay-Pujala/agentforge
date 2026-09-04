@@ -19,6 +19,10 @@ const workerFields = {
 
   configuration: z.record(z.string(), z.unknown()).default({}),
 
+  enabledTools: z.array(z.string().trim().min(1)).default([]),
+
+  permissions: z.array(z.string().trim().min(1)).default([]),
+
   status: z.enum(["enabled", "disabled"]),
 };
 
@@ -29,6 +33,8 @@ export const createWorkerSchema = z.object({
     instructions: workerFields.instructions,
     model: workerFields.model.optional(),
     configuration: workerFields.configuration.optional(),
+    enabledTools: workerFields.enabledTools.optional(),
+    permissions: workerFields.permissions.optional(),
     status: workerFields.status.optional(),
   }),
   params: z.object({}),
@@ -43,6 +49,8 @@ export const updateWorkerSchema = z.object({
       instructions: workerFields.instructions.optional(),
       model: workerFields.model.optional(),
       configuration: workerFields.configuration.optional(),
+      enabledTools: workerFields.enabledTools.optional(),
+      permissions: workerFields.permissions.optional(),
       status: workerFields.status.optional(),
     })
     .refine(

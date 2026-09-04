@@ -1,7 +1,7 @@
 const EXECUTION_POLICY = {
   provider: "openrouter",
 
-  supportedModels: ["gemini-3.6-flash-lite"],
+  supportedModels: ["gemini-3.6-flash-lite", "openai/gpt-4o-mini"],
 
   timeoutMs: 30_000,
 

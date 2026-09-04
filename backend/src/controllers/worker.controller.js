@@ -13,7 +13,16 @@ import {
 
 export async function createWorker(req, res, next) {
   try {
-    const { name, description, instructions, model, configuration } = req.body;
+    const {
+      name,
+      description,
+      instructions,
+      model,
+      configuration,
+      enabledTools,
+      permissions,
+      status,
+    } = req.body;
 
     const user = await User.findOne({
       firebaseUid: req.firebaseUser.uid,
@@ -34,6 +43,8 @@ export async function createWorker(req, res, next) {
       instructions,
       model,
       configuration,
+      enabledTools,
+      permissions,
     });
 
     return res.status(201).json({
@@ -124,8 +135,16 @@ export async function updateWorker(req, res, next) {
       });
     }
 
-    const { name, description, instructions, model, configuration, status } =
-      req.body;
+    const {
+      name,
+      description,
+      instructions,
+      model,
+      configuration,
+      enabledTools,
+      permissions,
+      status,
+    } = req.body;
 
     const worker = await Worker.findOneAndUpdate(
       {
@@ -138,6 +157,8 @@ export async function updateWorker(req, res, next) {
         instructions,
         model,
         configuration,
+        enabledTools,
+        permissions,
         status,
       },
       {
@@ -256,6 +277,7 @@ export async function runWorker(req, res, next) {
         totalTokens: result.metadata?.usage?.total_tokens ?? null,
       },
       cost: result.metadata?.usage?.cost ?? null,
+      toolCalls: result.toolCalls || [],
     });
 
     return res.status(200).json({
@@ -285,6 +307,7 @@ export async function runWorker(req, res, next) {
           totalTokens: usage?.total_tokens ?? null,
         },
         cost: usage?.cost ?? null,
+        toolCalls: err.toolCalls || [],
       });
     }
     next(err);

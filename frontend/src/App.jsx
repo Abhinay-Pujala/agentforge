@@ -10,6 +10,7 @@ import WorkerDetails from "./pages/WorkerDetails.jsx";
 import EditWorker from "./pages/EditWorker.jsx";
 import Executions from "./pages/Executions.jsx";
 import ExecutionDetails from "./pages/ExecutionDetails.jsx";
+import Tools from "./pages/Tools.jsx";
 
 export default function App() {
   return (
@@ -78,6 +79,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <ExecutionDetails />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/tools"
+          element={
+            <ProtectedRoute>
+              <Tools />
             </ProtectedRoute>
           }
         />

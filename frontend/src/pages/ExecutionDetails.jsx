@@ -7,6 +7,7 @@ import {
   Cpu,
   Loader2,
   Timer,
+  Wrench,
   XCircle,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -205,6 +206,110 @@ export default function ExecutionDetails() {
             {execution.output || "No output available"}
           </div>
         </section>
+
+        {/* Tool Calls */}
+        {execution.toolCalls?.length > 0 && (
+          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+            <div className="flex items-center gap-2">
+              <Wrench size={18} className="text-indigo-400" />
+
+              <div>
+                <h2 className="text-lg font-semibold text-white">Tool Calls</h2>
+
+                <p className="mt-1 text-sm text-slate-400">
+                  Tools used during this execution.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              {execution.toolCalls.map((toolCall, index) => (
+                <div
+                  key={toolCall.id || index}
+                  className="rounded-xl border border-slate-800 bg-slate-950 p-4"
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <div className="flex items-center gap-3">
+                        <h3 className="font-mono text-sm font-semibold text-white">
+                          {toolCall.tool}
+                        </h3>
+
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                            toolCall.status === "COMPLETED"
+                              ? "bg-emerald-500/10 text-emerald-400"
+                              : toolCall.status === "TIMEOUT"
+                                ? "bg-yellow-500/10 text-yellow-400"
+                                : "bg-red-500/10 text-red-400"
+                          }`}
+                        >
+                          {toolCall.status}
+                        </span>
+                      </div>
+
+                      <p className="mt-1 text-xs text-slate-600">
+                        Tool Call ID: {toolCall.id}
+                      </p>
+                    </div>
+
+                    {toolCall.durationMs !== null &&
+                      toolCall.durationMs !== undefined && (
+                        <span className="text-xs text-slate-500">
+                          {toolCall.durationMs} ms
+                        </span>
+                      )}
+                  </div>
+
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    {/* Arguments */}
+                    <div>
+                      <p className="mb-2 text-xs font-medium text-slate-500">
+                        Arguments
+                      </p>
+
+                      <pre className="max-h-60 overflow-auto rounded-lg bg-slate-900 p-3 font-mono text-xs leading-5 text-slate-300">
+                        {JSON.stringify(toolCall.arguments || {}, null, 2)}
+                      </pre>
+                    </div>
+
+                    {/* Result */}
+                    <div>
+                      <p className="mb-2 text-xs font-medium text-slate-500">
+                        Result
+                      </p>
+
+                      <pre className="max-h-60 overflow-auto rounded-lg bg-slate-900 p-3 font-mono text-xs leading-5 text-slate-300">
+                        {toolCall.result !== null &&
+                        toolCall.result !== undefined
+                          ? JSON.stringify(toolCall.result, null, 2)
+                          : toolCall.error?.message || "No result available"}
+                      </pre>
+                    </div>
+                  </div>
+
+                  {toolCall.error && (
+                    <div className="mt-4 rounded-lg border border-red-500/20 bg-red-500/5 p-3">
+                      <p className="text-xs font-medium text-red-400">
+                        Tool Error
+                      </p>
+
+                      <p className="mt-1 text-xs text-red-300">
+                        {toolCall.error.message}
+                      </p>
+
+                      {toolCall.error.code && (
+                        <p className="mt-1 font-mono text-xs text-red-400/70">
+                          Code: {toolCall.error.code}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Error */}
         {(execution.status === "FAILED" || execution.status === "TIMEOUT") && (

@@ -25,6 +25,14 @@ import {
 } from "../services/worker.service.js";
 import { getExecutions } from "../services/execution.service.js";
 
+const AVAILABLE_TOOLS = {
+  calculator: {
+    label: "Calculator",
+    description: "Performs arithmetic calculations.",
+    permission: "calculator.execute",
+  },
+};
+
 export default function WorkerDetails() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -497,6 +505,74 @@ export default function WorkerDetails() {
             </pre>
           </section>
         </div>
+
+        {/* Tools & Permissions */}
+        <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+          <div className="mb-5">
+            <h2 className="text-lg font-semibold text-white">
+              Tools & Permissions
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-400">
+              Tools available to this worker and the permissions granted to use
+              them.
+            </p>
+          </div>
+
+          {worker.enabledTools?.length > 0 ? (
+            <div className="space-y-3">
+              {worker.enabledTools.map((toolName) => {
+                const tool = AVAILABLE_TOOLS[toolName];
+
+                return (
+                  <div
+                    key={toolName}
+                    className="rounded-xl border border-slate-800 bg-slate-950 p-4"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <h3 className="text-sm font-medium text-white">
+                          {tool?.label || toolName}
+                        </h3>
+
+                        <p className="mt-1 text-sm text-slate-400">
+                          {tool?.description || "Enabled worker tool."}
+                        </p>
+                      </div>
+
+                      <span className="rounded-full bg-indigo-500/10 px-2.5 py-1 text-xs font-medium text-indigo-400">
+                        Enabled
+                      </span>
+                    </div>
+
+                    {worker.permissions?.length > 0 && (
+                      <div className="mt-3 border-t border-slate-800 pt-3">
+                        <p className="text-xs text-slate-500">Permissions</p>
+
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {worker.permissions.map((permission) => (
+                            <span
+                              key={permission}
+                              className="rounded-lg bg-slate-900 px-2.5 py-1 font-mono text-xs text-slate-400"
+                            >
+                              {permission}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-slate-700 py-8 text-center">
+              <p className="text-sm text-slate-500">
+                No tools enabled for this worker.
+              </p>
+            </div>
+          )}
+        </section>
 
         {/* Instructions */}
         <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">

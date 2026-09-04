@@ -4,6 +4,15 @@ import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../layouts/DashboardLayout";
 import { createWorker } from "../services/worker.service";
 
+const AVAILABLE_TOOLS = [
+  {
+    name: "calculator",
+    label: "Calculator",
+    description: "Performs arithmetic calculations.",
+    permission: "calculator.execute",
+  },
+];
+
 export default function CreateWorker() {
   const navigate = useNavigate();
 
@@ -14,6 +23,8 @@ export default function CreateWorker() {
     model: "gemini-3.6-flash-lite",
     configuration: "",
     status: "enabled",
+    enabledTools: [],
+    permissions: [],
   });
 
   const [error, setError] = useState("");
@@ -26,6 +37,24 @@ export default function CreateWorker() {
       ...previous,
       [name]: value,
     }));
+  }
+
+  function handleToolToggle(tool) {
+    setFormData((previous) => {
+      const isEnabled = previous.enabledTools.includes(tool.name);
+
+      return {
+        ...previous,
+        enabledTools: isEnabled
+          ? previous.enabledTools.filter((name) => name !== tool.name)
+          : [...previous.enabledTools, tool.name],
+        permissions: isEnabled
+          ? previous.permissions.filter(
+              (permission) => permission !== tool.permission,
+            )
+          : [...previous.permissions, tool.permission],
+      };
+    });
   }
 
   async function handleSubmit(event) {
@@ -69,6 +98,8 @@ export default function CreateWorker() {
       instructions,
       configuration,
       status: formData.status,
+      enabledTools: formData.enabledTools,
+      permissions: formData.permissions,
     };
 
     if (model) {
@@ -287,6 +318,71 @@ export default function CreateWorker() {
               <p className="mt-2 text-xs text-slate-500">
                 Must be a valid JSON object. This field is optional.
               </p>
+            </div>
+          </section>
+
+          {/* Tools & Permissions */}
+          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-white">
+                Tools & Permissions
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-400">
+                Choose the tools this worker can use. Selecting a tool
+                automatically grants the permission required to execute it.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              {AVAILABLE_TOOLS.map((tool) => {
+                const isEnabled = formData.enabledTools.includes(tool.name);
+
+                return (
+                  <label
+                    key={tool.name}
+                    className={`flex cursor-pointer items-start gap-4 rounded-xl border p-4 transition-all ${
+                      isEnabled
+                        ? "border-indigo-500/50 bg-indigo-500/5"
+                        : "border-slate-800 bg-slate-950 hover:border-slate-700"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isEnabled}
+                      onChange={() => handleToolToggle(tool)}
+                      className="mt-1 h-4 w-4 cursor-pointer accent-indigo-500"
+                    />
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-3">
+                        <h3 className="text-sm font-medium text-white">
+                          {tool.label}
+                        </h3>
+
+                        {isEnabled && (
+                          <span className="rounded-full bg-indigo-500/10 px-2.5 py-1 text-xs font-medium text-indigo-400">
+                            Enabled
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="mt-1 text-sm text-slate-400">
+                        {tool.description}
+                      </p>
+
+                      {isEnabled && (
+                        <p className="mt-2 text-xs text-slate-500">
+                          Permission:{" "}
+                          <span className="font-mono text-slate-400">
+                            {tool.permission}
+                          </span>
+                        </p>
+                      )}
+                    </div>
+                  </label>
+                );
+              })}
             </div>
           </section>
 

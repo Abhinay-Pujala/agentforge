@@ -36,11 +36,20 @@
  * @property {string} model
  * @property {ModelMessage[]} messages
  * @property {Object} [configuration]
+ * @property {Object[]} [tools]
+ */
+
+/**
+ * @typedef {Object} ToolCall
+ * @property {string} id
+ * @property {string} tool
+ * @property {Object} arguments
  */
 
 /**
  * @typedef {Object} ModelResponse
- * @property {string} output
+ * @property {string|null} output
+ * @property {ToolCall[]} [toolCalls]
  * @property {Object} [metadata]
  */
 

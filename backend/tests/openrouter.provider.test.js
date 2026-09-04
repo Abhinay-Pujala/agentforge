@@ -86,4 +86,93 @@ describe("OpenRouterProvider", () => {
       statusCode: 504,
     });
   });
+  it("sends tools and normalizes tool calls", async () => {
+    const fetchMock = vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        model: "gemini-3.6-flash-lite",
+        choices: [
+          {
+            message: {
+              content: null,
+              tool_calls: [
+                {
+                  id: "call-123",
+                  type: "function",
+                  function: {
+                    name: "calculator",
+                    arguments: JSON.stringify({
+                      expression: "125 * 48",
+                    }),
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    });
+
+    const provider = new OpenRouterProvider();
+
+    const result = await provider.generate({
+      model: "gemini-3.6-flash-lite",
+      messages: [
+        {
+          role: "user",
+          content: "What is 125 * 48?",
+        },
+      ],
+      tools: [
+        {
+          name: "calculator",
+          description: "Perform basic arithmetic calculations.",
+          schema: {
+            type: "object",
+            properties: {
+              expression: {
+                type: "string",
+              },
+            },
+            required: ["expression"],
+            additionalProperties: false,
+          },
+        },
+      ],
+    });
+
+    const request = fetchMock.mock.calls[0][1];
+    const body = JSON.parse(request.body);
+
+    expect(body.tools).toEqual([
+      {
+        type: "function",
+        function: {
+          name: "calculator",
+          description: "Perform basic arithmetic calculations.",
+          parameters: {
+            type: "object",
+            properties: {
+              expression: {
+                type: "string",
+              },
+            },
+            required: ["expression"],
+            additionalProperties: false,
+          },
+        },
+      },
+    ]);
+
+    expect(result.output).toBeNull();
+    expect(result.toolCalls).toEqual([
+      {
+        id: "call-123",
+        tool: "calculator",
+        arguments: {
+          expression: "125 * 48",
+        },
+      },
+    ]);
+  });
 });

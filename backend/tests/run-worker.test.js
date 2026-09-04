@@ -89,6 +89,21 @@ describe("runWorker", () => {
           cost: 0.0025,
         },
       },
+      toolCalls: [
+        {
+          id: "call-1",
+          tool: "calculator",
+          arguments: {
+            expression: "125 * 48",
+          },
+          result: {
+            expression: "125 * 48",
+            result: 6000,
+          },
+          status: "COMPLETED",
+          durationMs: 2,
+        },
+      ],
     });
 
     const req = {
@@ -162,6 +177,20 @@ describe("runWorker", () => {
           totalTokens: 150,
         },
         cost: 0.0025,
+        toolCalls: [
+          expect.objectContaining({
+            id: "call-1",
+            tool: "calculator",
+            arguments: {
+              expression: "125 * 48",
+            },
+            result: {
+              expression: "125 * 48",
+              result: 6000,
+            },
+            status: "COMPLETED",
+          }),
+        ],
       }),
     );
 
@@ -180,6 +209,13 @@ describe("runWorker", () => {
             cost: 0.0025,
           },
         },
+        toolCalls: [
+          expect.objectContaining({
+            id: "call-1",
+            tool: "calculator",
+            status: "COMPLETED",
+          }),
+        ],
       },
     });
 
@@ -187,8 +223,24 @@ describe("runWorker", () => {
   });
 
   it("marks the execution as FAILED when runtime execution fails", async () => {
-    const runtimeError = new Error("Provider request failed");
+    const runtimeError = new Error("Calculator failed");
     runtimeError.statusCode = 500;
+    runtimeError.toolCalls = [
+      {
+        id: "call-failure",
+        tool: "calculator",
+        arguments: {
+          expression: "125 * 48",
+        },
+        result: null,
+        status: "FAILED",
+        error: {
+          message: "Calculator failed",
+          code: null,
+        },
+        durationMs: 3,
+      },
+    ];
 
     executeMock.mockRejectedValue(runtimeError);
 
@@ -215,9 +267,24 @@ describe("runWorker", () => {
       expect.objectContaining({
         status: "FAILED",
         error: {
-          message: "Provider request failed",
+          message: "Calculator failed",
           code: 500,
         },
+        toolCalls: [
+          expect.objectContaining({
+            id: "call-failure",
+            tool: "calculator",
+            arguments: {
+              expression: "125 * 48",
+            },
+            result: null,
+            status: "FAILED",
+            error: {
+              message: "Calculator failed",
+              code: null,
+            },
+          }),
+        ],
         completedAt: expect.any(Date),
         durationMs: expect.any(Number),
       }),

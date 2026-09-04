@@ -33,6 +33,14 @@ const workerSchema = new mongoose.Schema(
       type: Object,
       default: {},
     },
+    enabledTools: {
+      type: [String],
+      default: [],
+    },
+    permissions: {
+      type: [String],
+      default: [],
+    },
     status: {
       type: String,
       enum: ["enabled", "disabled"],

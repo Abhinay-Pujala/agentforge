@@ -14,7 +14,13 @@ class OpenRouterProvider extends ModelProvider {
   }
 
   async generate(request) {
-    const { model, messages, configuration = {}, executionPolicy } = request;
+    const {
+      model,
+      messages,
+      configuration = {},
+      executionPolicy,
+      tools = [],
+    } = request;
 
     const controller = new AbortController();
 
@@ -36,6 +42,18 @@ class OpenRouterProvider extends ModelProvider {
           messages,
           ...configuration,
           max_tokens: executionPolicy?.maxTokens,
+          ...(tools.length > 0
+            ? {
+                tools: tools.map((tool) => ({
+                  type: "function",
+                  function: {
+                    name: tool.name,
+                    description: tool.description,
+                    parameters: tool.schema,
+                  },
+                })),
+              }
+            : {}),
         }),
         signal: controller.signal,
       });
@@ -52,9 +70,45 @@ class OpenRouterProvider extends ModelProvider {
         throw error;
       }
 
-      const output = data?.choices?.[0]?.message?.content;
+      const message = data?.choices?.[0]?.message;
 
-      if (!output) {
+      if (!message) {
+        const error = new Error("OpenRouter returned an empty response");
+        error.statusCode = 502;
+        throw error;
+      }
+
+      const output =
+        typeof message.content === "string" && message.content.trim()
+          ? message.content
+          : null;
+
+      const toolCalls = Array.isArray(message.tool_calls)
+        ? message.tool_calls.map((toolCall) => {
+            let parsedArguments = {};
+
+            try {
+              parsedArguments =
+                typeof toolCall.function?.arguments === "string"
+                  ? JSON.parse(toolCall.function.arguments)
+                  : toolCall.function?.arguments || {};
+            } catch {
+              throw new Error(
+                `Invalid arguments returned for tool: ${
+                  toolCall.function?.name || "unknown"
+                }`,
+              );
+            }
+
+            return {
+              id: toolCall.id,
+              tool: toolCall.function?.name,
+              arguments: parsedArguments,
+            };
+          })
+        : [];
+
+      if (!output && toolCalls.length === 0) {
         const error = new Error("OpenRouter returned an empty response");
         error.statusCode = 502;
         throw error;
@@ -62,6 +116,7 @@ class OpenRouterProvider extends ModelProvider {
 
       return {
         output,
+        toolCalls,
         metadata: {
           provider: "openrouter",
           model: data.model || model,

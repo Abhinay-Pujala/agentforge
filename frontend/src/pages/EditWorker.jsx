@@ -11,6 +11,12 @@ const AVAILABLE_TOOLS = [
     description: "Performs arithmetic calculations.",
     permission: "calculator.execute",
   },
+  {
+    name: "n8n.trigger",
+    label: "n8n Workflow",
+    description: "Triggers a configured n8n workflow.",
+    permission: "n8n.trigger",
+  },
 ];
 
 export default function EditWorker() {
@@ -32,10 +38,16 @@ export default function EditWorker() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
+  const [n8nWorkflow, setN8nWorkflow] = useState("agentforge-test");
+
   useEffect(() => {
     async function fetchWorker() {
       try {
         const worker = await getWorkerById(id);
+
+        setN8nWorkflow(
+          worker.configuration?.n8n?.workflow || "agentforge-test",
+        );
 
         setFormData({
           name: worker.name || "",
@@ -75,6 +87,10 @@ export default function EditWorker() {
   function handleToolToggle(tool) {
     setFormData((previous) => {
       const isEnabled = previous.enabledTools.includes(tool.name);
+
+      if (tool.name === "n8n.trigger" && isEnabled) {
+        setN8nWorkflow("agentforge-test");
+      }
 
       return {
         ...previous,
@@ -123,6 +139,14 @@ export default function EditWorker() {
         setError("Configuration contains invalid JSON.");
         return;
       }
+    }
+
+    if (formData.enabledTools.includes("n8n.trigger")) {
+      configuration.n8n = {
+        workflow: n8nWorkflow,
+      };
+    } else if (configuration.n8n) {
+      delete configuration.n8n;
     }
 
     const workerData = {
@@ -356,6 +380,45 @@ export default function EditWorker() {
               })}
             </div>
           </section>
+
+          {/* n8n Configuration */}
+          {formData.enabledTools.includes("n8n.trigger") && (
+            <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+              <div className="mb-6">
+                <h2 className="text-lg font-semibold text-white">
+                  n8n Workflow Configuration
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-400">
+                  Choose the n8n workflow this worker is allowed to trigger.
+                </p>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="n8nWorkflow"
+                  className="mb-2 block text-sm font-medium text-slate-200"
+                >
+                  Workflow
+                </label>
+
+                <select
+                  id="n8nWorkflow"
+                  value={n8nWorkflow}
+                  onChange={(event) => setN8nWorkflow(event.target.value)}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none transition-all focus:border-indigo-500"
+                >
+                  <option value="agentforge-test">
+                    AgentForge Test Workflow
+                  </option>
+                </select>
+
+                <p className="mt-2 text-xs text-slate-500">
+                  The workflow endpoint is managed securely by AgentForge.
+                </p>
+              </div>
+            </section>
+          )}
 
           {/* Status */}
           <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">

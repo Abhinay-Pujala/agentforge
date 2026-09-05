@@ -44,10 +44,15 @@ describe("createAgentRuntime", () => {
   it("registers the calculator tool in the runtime registry", () => {
     createAgentRuntime();
 
-    expect(registerMock).toHaveBeenCalledTimes(1);
+    expect(registerMock).toHaveBeenCalledTimes(2);
     expect(registerMock).toHaveBeenCalledWith(
       expect.objectContaining({
         name: "calculator",
+      }),
+    );
+    expect(registerMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "n8n.trigger",
       }),
     );
   });

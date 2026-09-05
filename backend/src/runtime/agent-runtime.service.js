@@ -112,6 +112,7 @@ class AgentRuntime {
             arguments: toolCall.arguments,
             timeoutMs: executionPolicy?.toolTimeoutMs ?? 10_000,
             permissions: worker.permissions || [],
+            context,
           });
 
           record.result = toolResult;

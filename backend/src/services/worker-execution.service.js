@@ -37,6 +37,7 @@ export async function getWorkerExecutionContext(firebaseUid, workerId) {
     context: {
       userId: user._id.toString(),
       workerId: worker._id.toString(),
+      worker,
     },
   };
 }

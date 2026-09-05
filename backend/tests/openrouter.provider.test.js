@@ -54,10 +54,11 @@ describe("OpenRouterProvider", () => {
 
     expect(body.max_tokens).toBe(2_000);
   });
+
   it("uses the execution policy timeout", async () => {
     vi.spyOn(global, "fetch").mockImplementation(
       (_url, options) =>
-        new Promise((_, reject) => {
+        new Promise((_resolve, reject) => {
           options.signal.addEventListener("abort", () => {
             const error = new Error("Aborted");
             error.name = "AbortError";
@@ -86,7 +87,8 @@ describe("OpenRouterProvider", () => {
       statusCode: 504,
     });
   });
-  it("sends tools and normalizes tool calls", async () => {
+
+  it("sends tools with provider-safe names and normalizes tool calls", async () => {
     const fetchMock = vi.spyOn(global, "fetch").mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -100,9 +102,9 @@ describe("OpenRouterProvider", () => {
                   id: "call-123",
                   type: "function",
                   function: {
-                    name: "calculator",
+                    name: "n8n_trigger",
                     arguments: JSON.stringify({
-                      expression: "125 * 48",
+                      message: "Hello from Worker",
                     }),
                   },
                 },
@@ -120,21 +122,21 @@ describe("OpenRouterProvider", () => {
       messages: [
         {
           role: "user",
-          content: "What is 125 * 48?",
+          content: "Trigger the n8n workflow.",
         },
       ],
       tools: [
         {
-          name: "calculator",
-          description: "Perform basic arithmetic calculations.",
+          name: "n8n.trigger",
+          description: "Trigger a configured n8n workflow.",
           schema: {
             type: "object",
             properties: {
-              expression: {
+              message: {
                 type: "string",
               },
             },
-            required: ["expression"],
+            required: ["message"],
             additionalProperties: false,
           },
         },
@@ -148,16 +150,16 @@ describe("OpenRouterProvider", () => {
       {
         type: "function",
         function: {
-          name: "calculator",
-          description: "Perform basic arithmetic calculations.",
+          name: "n8n_trigger",
+          description: "Trigger a configured n8n workflow.",
           parameters: {
             type: "object",
             properties: {
-              expression: {
+              message: {
                 type: "string",
               },
             },
-            required: ["expression"],
+            required: ["message"],
             additionalProperties: false,
           },
         },
@@ -165,12 +167,13 @@ describe("OpenRouterProvider", () => {
     ]);
 
     expect(result.output).toBeNull();
+
     expect(result.toolCalls).toEqual([
       {
         id: "call-123",
-        tool: "calculator",
+        tool: "n8n.trigger",
         arguments: {
-          expression: "125 * 48",
+          message: "Hello from Worker",
         },
       },
     ]);

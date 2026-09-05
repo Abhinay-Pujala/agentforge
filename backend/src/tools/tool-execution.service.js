@@ -14,6 +14,7 @@ class ToolExecutionService {
     arguments: toolArguments,
     timeoutMs = 10_000,
     permissions = [],
+    context = {},
   }) {
     const tool = this.toolRegistry.get(toolName);
 
@@ -47,7 +48,9 @@ class ToolExecutionService {
 
     try {
       return await Promise.race([
-        tool.execute(toolArguments),
+        Object.keys(context).length > 0
+          ? tool.execute(toolArguments, context)
+          : tool.execute(toolArguments),
         new Promise((_, reject) => {
           timeout = setTimeout(() => {
             const error = new Error(`Tool execution timed out: ${tool.name}`);

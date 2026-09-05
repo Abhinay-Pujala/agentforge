@@ -116,8 +116,9 @@ describe("Worker Execution Service", () => {
       user,
       worker,
       context: {
-        userId: "user-123",
-        workerId: "worker-123",
+        userId: user._id.toString(),
+        workerId: worker._id.toString(),
+        worker,
       },
     });
   });

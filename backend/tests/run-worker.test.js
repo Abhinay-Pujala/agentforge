@@ -153,6 +153,7 @@ describe("runWorker", () => {
       context: {
         userId: "user-123",
         workerId: "worker-123",
+        executionId: "execution-123",
       },
       executionPolicy: expect.objectContaining({
         provider: "openrouter",
@@ -462,6 +463,93 @@ describe("runWorker", () => {
           totalTokens: null,
         },
         cost: null,
+      }),
+    );
+
+    expect(next).not.toHaveBeenCalled();
+  });
+  it("persists n8n workflow activity in execution history", async () => {
+    executeMock.mockResolvedValue({
+      output: "Workflow completed successfully",
+      metadata: {
+        usage: {
+          prompt_tokens: 120,
+          completion_tokens: 40,
+          total_tokens: 160,
+          cost: 0.003,
+        },
+      },
+      toolCalls: [
+        {
+          id: "n8n-call-1",
+          tool: "n8n.trigger",
+          arguments: {
+            workflow: "agentforge-test",
+            data: {
+              message: "Hello from Worker",
+            },
+          },
+          result: {
+            success: true,
+            result: {
+              success: true,
+              result: {
+                message: "Hello from n8n",
+                workflow: "agentforge-test",
+              },
+            },
+          },
+          status: "COMPLETED",
+          durationMs: 120,
+        },
+      ],
+    });
+
+    const req = {
+      params: {
+        id: "worker-123",
+      },
+      body: {
+        input: "Trigger the test workflow",
+      },
+      firebaseUser: {
+        uid: "firebase-123",
+      },
+    };
+
+    const res = createResponse();
+    const next = vi.fn();
+
+    await runWorker(req, res, next);
+
+    expect(updateExecutionStatusMock).toHaveBeenNthCalledWith(
+      2,
+      "execution-123",
+      expect.objectContaining({
+        status: "COMPLETED",
+        toolCalls: [
+          expect.objectContaining({
+            id: "n8n-call-1",
+            tool: "n8n.trigger",
+            arguments: {
+              workflow: "agentforge-test",
+              data: {
+                message: "Hello from Worker",
+              },
+            },
+            result: {
+              success: true,
+              result: {
+                success: true,
+                result: {
+                  message: "Hello from n8n",
+                  workflow: "agentforge-test",
+                },
+              },
+            },
+            status: "COMPLETED",
+          }),
+        ],
       }),
     );
 

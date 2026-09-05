@@ -242,6 +242,10 @@ export async function runWorker(req, res, next) {
       input,
       worker.model,
     );
+    const executionContext = {
+      ...context,
+      executionId: execution._id.toString(),
+    };
 
     startedAt = new Date();
 
@@ -255,7 +259,7 @@ export async function runWorker(req, res, next) {
     result = await runtime.execute({
       worker,
       input,
-      context,
+      context: executionContext,
       executionPolicy,
     });
 

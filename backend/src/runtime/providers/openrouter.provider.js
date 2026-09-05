@@ -2,6 +2,45 @@ import ModelProvider from "../model-provider.js";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
+function toProviderToolName(toolName) {
+  return toolName.replace(/\./g, "_");
+}
+
+function createToolNameMap(tools) {
+  const map = new Map();
+
+  for (const tool of tools) {
+    const providerName = toProviderToolName(tool.name);
+
+    if (map.has(providerName)) {
+      throw new Error(
+        `Tool name collision after provider normalization: ${providerName}`,
+      );
+    }
+
+    map.set(providerName, tool.name);
+  }
+
+  return map;
+}
+
+function normalizeProviderMessages(messages) {
+  return messages.map((message) => ({
+    ...message,
+    ...(Array.isArray(message.tool_calls)
+      ? {
+          tool_calls: message.tool_calls.map((toolCall) => ({
+            ...toolCall,
+            function: {
+              ...toolCall.function,
+              name: toProviderToolName(toolCall.function?.name),
+            },
+          })),
+        }
+      : {}),
+  }));
+}
+
 class OpenRouterProvider extends ModelProvider {
   constructor() {
     super();
@@ -22,6 +61,7 @@ class OpenRouterProvider extends ModelProvider {
       tools = [],
     } = request;
 
+    const toolNameMap = createToolNameMap(tools);
     const controller = new AbortController();
 
     const timeoutMs = executionPolicy?.timeoutMs ?? 30_000;
@@ -39,7 +79,7 @@ class OpenRouterProvider extends ModelProvider {
         },
         body: JSON.stringify({
           model,
-          messages,
+          messages: normalizeProviderMessages(messages),
           ...configuration,
           max_tokens: executionPolicy?.maxTokens,
           ...(tools.length > 0
@@ -47,7 +87,7 @@ class OpenRouterProvider extends ModelProvider {
                 tools: tools.map((tool) => ({
                   type: "function",
                   function: {
-                    name: tool.name,
+                    name: toProviderToolName(tool.name),
                     description: tool.description,
                     parameters: tool.schema,
                   },
@@ -61,12 +101,12 @@ class OpenRouterProvider extends ModelProvider {
       const data = await response.json();
 
       if (!response.ok) {
+        console.error("OpenRouter error response:", data);
+
         const error = new Error(
           data?.error?.message || "OpenRouter request failed",
         );
-
         error.statusCode = response.status >= 500 ? 502 : response.status;
-
         throw error;
       }
 
@@ -100,9 +140,13 @@ class OpenRouterProvider extends ModelProvider {
               );
             }
 
+            const providerToolName = toolCall.function?.name;
+            const internalToolName =
+              toolNameMap.get(providerToolName) || providerToolName;
+
             return {
               id: toolCall.id,
-              tool: toolCall.function?.name,
+              tool: internalToolName,
               arguments: parsedArguments,
             };
           })

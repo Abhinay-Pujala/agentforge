@@ -87,7 +87,7 @@ export async function getWorkflow(req, res, next) {
     return res.status(200).json({
       success: true,
       message: "Workflow fetched successfully.",
-      data: workflow,
+      data: withWorkflowConfigurationStatus(workflow),
     });
   } catch (err) {
     next(err);
@@ -123,7 +123,7 @@ export async function updateWorkflowController(req, res, next) {
     return res.status(200).json({
       success: true,
       message: "Workflow updated successfully.",
-      data: workflow,
+      data: withWorkflowConfigurationStatus(workflow),
     });
   } catch (err) {
     next(err);

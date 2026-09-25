@@ -68,6 +68,18 @@ function validateSchema(value, schema, path = "arguments") {
     for (const field of required) {
       if (!(field in value)) {
         errors.push(`${path}.${field} is required`);
+        continue;
+      }
+
+      const fieldSchema = properties[field];
+      const fieldValue = value[field];
+
+      if (
+        fieldSchema?.type === "string" &&
+        typeof fieldValue === "string" &&
+        fieldValue.trim().length === 0
+      ) {
+        errors.push(`${path}.${field} is required`);
       }
     }
 

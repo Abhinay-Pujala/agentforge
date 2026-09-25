@@ -103,7 +103,7 @@ describe("n8n.trigger tool", () => {
       n8nTriggerTool.execute(
         {
           workflowId: "workflow-123",
-          data: {},
+          data: { message: 123 },
         },
         {
           userId: "user-123",

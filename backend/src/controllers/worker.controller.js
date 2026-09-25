@@ -273,8 +273,12 @@ export async function runWorker(req, res, next) {
 
     const completedAt = new Date();
 
+    const executionStatus = result.metadata?.inputRequired
+      ? "WAITING_FOR_INPUT"
+      : "COMPLETED";
+
     await updateExecutionStatus(execution._id, {
-      status: "COMPLETED",
+      status: executionStatus,
       output: result.output,
       startedAt,
       completedAt,
@@ -290,7 +294,9 @@ export async function runWorker(req, res, next) {
 
     return res.status(200).json({
       success: true,
-      message: "Worker executed successfully.",
+      message: result.metadata?.inputRequired
+        ? "Worker needs additional input to continue."
+        : "Worker executed successfully.",
       data: result,
     });
   } catch (err) {

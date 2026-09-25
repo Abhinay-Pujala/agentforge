@@ -129,3 +129,26 @@ export async function runWorker(id, input) {
 
   return response.data.data;
 }
+
+export async function resumeWorkerExecution(workerId, executionId, input) {
+  const currentUser = auth.currentUser;
+
+  if (!currentUser) {
+    throw new Error("You must be logged in to resume the worker.");
+  }
+
+  const idToken = await currentUser.getIdToken();
+
+  const response = await axios({
+    method: "POST",
+    url: `${BASE_URL}/${workerId}/executions/${executionId}/resume`,
+    headers: {
+      Authorization: `Bearer ${idToken}`,
+    },
+    data: {
+      input,
+    },
+  });
+
+  return response.data.data;
+}

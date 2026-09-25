@@ -9,6 +9,7 @@ import {
 import {
   createExecution,
   updateExecutionStatus,
+  getExecutionById,
 } from "../services/execution.service.js";
 
 export async function createWorker(req, res, next) {
@@ -324,6 +325,119 @@ export async function runWorker(req, res, next) {
         toolCalls: err.toolCalls || [],
       });
     }
+    next(err);
+  }
+}
+
+
+export async function resumeWorkerExecution(req, res, next) {
+  let execution;
+  let startedAt;
+  let result;
+
+  try {
+    const { id, executionId } = req.params;
+    const { input } = req.body;
+
+    const { user, worker, context } = await getWorkerExecutionContext(
+      req.firebaseUser.uid,
+      id,
+    );
+
+    execution = await getExecutionById(executionId, user._id);
+
+    if (!execution || execution.worker._id.toString() !== worker._id.toString()) {
+      return res.status(404).json({
+        success: false,
+        message: "Waiting execution not found.",
+        data: null,
+      });
+    }
+
+    if (execution.status !== "WAITING_FOR_INPUT") {
+      return res.status(409).json({
+        success: false,
+        message: "Execution is not waiting for input.",
+        data: null,
+      });
+    }
+
+    const executionPolicy = validateExecutionPolicy(worker);
+    const executionContext = {
+      ...context,
+      executionId: execution._id.toString(),
+      resumedFromExecutionId: execution._id.toString(),
+    };
+
+    startedAt = new Date();
+
+    await updateExecutionStatus(execution._id, {
+      status: "RUNNING",
+      startedAt,
+      completedAt: null,
+      durationMs: null,
+    });
+
+    const runtime = createAgentRuntime();
+
+    result = await runtime.execute({
+      worker,
+      input: `Original request:
+${execution.input}
+
+User provided additional information:
+${input}`,
+      context: executionContext,
+      executionPolicy,
+    });
+
+    const usage = result.metadata?.usage;
+    validateExecutionCost(usage?.cost);
+
+    const completedAt = new Date();
+    const executionStatus = result.metadata?.inputRequired
+      ? "WAITING_FOR_INPUT"
+      : "COMPLETED";
+
+    await updateExecutionStatus(execution._id, {
+      status: executionStatus,
+      output: result.output,
+      completedAt,
+      durationMs: completedAt.getTime() - startedAt.getTime(),
+      usage: {
+        promptTokens: result.metadata?.usage?.prompt_tokens ?? null,
+        completionTokens: result.metadata?.usage?.completion_tokens ?? null,
+        totalTokens: result.metadata?.usage?.total_tokens ?? null,
+      },
+      cost: result.metadata?.usage?.cost ?? null,
+      toolCalls: result.toolCalls || [],
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: result.metadata?.inputRequired
+        ? "Worker still needs additional input."
+        : "Worker execution resumed successfully.",
+      data: result,
+    });
+  } catch (err) {
+    const completedAt = new Date();
+
+    if (execution) {
+      await updateExecutionStatus(execution._id, {
+        status: err.statusCode === 504 ? "TIMEOUT" : "FAILED",
+        error: {
+          message: err.message,
+          code: err.code || err.statusCode || null,
+        },
+        completedAt,
+        durationMs: startedAt
+          ? completedAt.getTime() - startedAt.getTime()
+          : null,
+        toolCalls: err.toolCalls || [],
+      });
+    }
+
     next(err);
   }
 }

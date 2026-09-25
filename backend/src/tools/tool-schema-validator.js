@@ -41,6 +41,26 @@ function validateSchema(value, schema, path = "arguments") {
     };
   }
 
+  if (schema.type === "string") {
+    if (
+      typeof schema.minLength === "number" &&
+      value.trim().length < schema.minLength
+    ) {
+      errors.push(
+        `${path} must contain at least ${schema.minLength} non-whitespace character(s)`,
+      );
+    }
+
+    if (
+      typeof schema.maxLength === "number" &&
+      value.length > schema.maxLength
+    ) {
+      errors.push(
+        `${path} must contain at most ${schema.maxLength} character(s)`,
+      );
+    }
+  }
+
   if (schema.type === "object") {
     const properties = schema.properties || {};
     const required = schema.required || [];

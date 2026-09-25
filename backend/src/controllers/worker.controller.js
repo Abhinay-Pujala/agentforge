@@ -270,6 +270,10 @@ export async function runWorker(req, res, next) {
 
     const usage = result.metadata?.usage;
 
+    if (result.metadata?.inputRequired) {
+      result.metadata.inputRequired.executionId = execution._id.toString();
+    }
+
     validateExecutionCost(usage?.cost);
 
     const completedAt = new Date();

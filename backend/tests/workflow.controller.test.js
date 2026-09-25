@@ -100,7 +100,17 @@ describe("Workflow registry controller", () => {
     });
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ data: workflows.map(expect.objectContaining) }),
+      expect.objectContaining({
+        data: [
+          expect.objectContaining({
+            _id: "workflow-123",
+            name: "Gmail Automation",
+            configurationStatus: expect.objectContaining({
+              code: "CONFIGURATION_REQUIRED",
+            }),
+          }),
+        ],
+      }),
     );
     expect(next).not.toHaveBeenCalled();
   });

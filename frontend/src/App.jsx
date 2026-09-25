@@ -13,101 +13,24 @@ import ExecutionDetails from "./pages/ExecutionDetails.jsx";
 import Tools from "./pages/Tools.jsx";
 import Workflows from "./pages/Workflows.jsx";
 import CreateWorkflow from "./pages/CreateWorkflow.jsx";
+import EditWorkflow from "./pages/EditWorkflow.jsx";
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route
-          path="/"
-          element={
-            <PublicRoute>
-              <Home />
-            </PublicRoute>
-          }
-        />
-
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/dashboard/workers"
-          element={
-            <ProtectedRoute>
-              <Workers />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard/workers/new"
-          element={
-            <ProtectedRoute>
-              <CreateWorker />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard/workers/:id"
-          element={
-            <ProtectedRoute>
-              <WorkerDetails />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard/workers/:id/edit"
-          element={
-            <ProtectedRoute>
-              <EditWorker />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard/executions"
-          element={
-            <ProtectedRoute>
-              <Executions />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard/executions/:id"
-          element={
-            <ProtectedRoute>
-              <ExecutionDetails />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard/tools"
-          element={
-            <ProtectedRoute>
-              <Tools />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard/workflows"
-          element={
-            <ProtectedRoute>
-              <Workflows />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard/workflows/new"
-          element={
-            <ProtectedRoute>
-              <CreateWorkflow />
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/" element={<PublicRoute><Home /></PublicRoute>} />
+        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/dashboard/workers" element={<ProtectedRoute><Workers /></ProtectedRoute>} />
+        <Route path="/dashboard/workers/new" element={<ProtectedRoute><CreateWorker /></ProtectedRoute>} />
+        <Route path="/dashboard/workers/:id" element={<ProtectedRoute><WorkerDetails /></ProtectedRoute>} />
+        <Route path="/dashboard/workers/:id/edit" element={<ProtectedRoute><EditWorker /></ProtectedRoute>} />
+        <Route path="/dashboard/executions" element={<ProtectedRoute><Executions /></ProtectedRoute>} />
+        <Route path="/dashboard/executions/:id" element={<ProtectedRoute><ExecutionDetails /></ProtectedRoute>} />
+        <Route path="/dashboard/tools" element={<ProtectedRoute><Tools /></ProtectedRoute>} />
+        <Route path="/dashboard/workflows" element={<ProtectedRoute><Workflows /></ProtectedRoute>} />
+        <Route path="/dashboard/workflows/new" element={<ProtectedRoute><CreateWorkflow /></ProtectedRoute>} />
+        <Route path="/dashboard/workflows/:id/edit" element={<ProtectedRoute><EditWorkflow /></ProtectedRoute>} />
       </Routes>
     </BrowserRouter>
   );

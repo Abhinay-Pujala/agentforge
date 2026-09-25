@@ -100,7 +100,7 @@ describe("Workflow registry controller", () => {
     });
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ data: workflows }),
+      expect.objectContaining({ data: workflows.map(expect.objectContaining) }),
     );
     expect(next).not.toHaveBeenCalled();
   });

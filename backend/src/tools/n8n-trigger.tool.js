@@ -1,16 +1,18 @@
+import { assertWorkflowAccess } from "../services/workflow.service.js";
+import { validateToolArguments } from "./tool-schema-validator.js";
 import { triggerN8nWorkflow } from "../services/n8n.service.js";
 
 export const n8nTriggerTool = {
   name: "n8n.trigger",
-  description: "Trigger a configured n8n workflow with structured data.",
+  description: "Trigger a registered n8n workflow with structured data.",
   permission: "n8n.trigger",
 
   schema: {
     type: "object",
     properties: {
-      workflow: {
+      workflowId: {
         type: "string",
-        description: "The configured n8n workflow name to trigger.",
+        description: "The registered AgentForge workflow ID.",
       },
       data: {
         type: "object",
@@ -18,33 +20,56 @@ export const n8nTriggerTool = {
         additionalProperties: true,
       },
     },
-    required: ["workflow", "data"],
+    required: ["workflowId", "data"],
     additionalProperties: false,
   },
 
   async execute(toolArguments, context = {}) {
-    const configuredWorkflow = context.worker?.configuration?.n8n?.workflow;
+    const workflowId = toolArguments.workflowId;
+    const worker = context.worker;
 
-    if (!configuredWorkflow) {
-      const error = new Error("No n8n workflow is configured for this worker.");
-
-      error.code = "N8N_WORKFLOW_NOT_CONFIGURED";
-
+    if (!workflowId) {
+      const error = new Error("Workflow ID is required.");
+      error.code = "N8N_WORKFLOW_REQUIRED";
       throw error;
     }
 
-    if (toolArguments.workflow !== configuredWorkflow) {
+    if (!worker?.workflowIds?.some((id) => id.toString() === workflowId)) {
       const error = new Error(
-        `Workflow "${toolArguments.workflow}" is not allowed for this worker.`,
+        `Workflow "${workflowId}" is not allowed for this worker.`,
       );
-
       error.code = "N8N_WORKFLOW_NOT_ALLOWED";
+      throw error;
+    }
 
+    const workflow = await assertWorkflowAccess(
+      workflowId,
+      context.userId,
+    );
+
+    const validation = validateToolArguments(
+      toolArguments.data,
+      workflow.inputSchema,
+    );
+
+    if (!validation.valid) {
+      const error = new Error(
+        `Invalid input for workflow "${workflow.name}": ${validation.errors.join(", ")}`,
+      );
+      error.code = "N8N_WORKFLOW_INPUT_INVALID";
+      throw error;
+    }
+
+    if (workflow.webhook?.provider !== "n8n") {
+      const error = new Error("Unsupported workflow provider.");
+      error.code = "WORKFLOW_PROVIDER_UNSUPPORTED";
       throw error;
     }
 
     return triggerN8nWorkflow({
-      workflow: configuredWorkflow,
+      workflowId: workflow._id.toString(),
+      workflow: workflow.name,
+      webhookUrl: workflow.webhook.url,
       data: toolArguments.data,
       workerId: context.workerId,
       executionId: context.executionId,

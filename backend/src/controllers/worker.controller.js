@@ -21,6 +21,7 @@ export async function createWorker(req, res, next) {
       configuration,
       enabledTools,
       permissions,
+      workflowIds,
       status,
     } = req.body;
 
@@ -45,6 +46,7 @@ export async function createWorker(req, res, next) {
       configuration,
       enabledTools,
       permissions,
+      workflowIds,
     });
 
     return res.status(201).json({
@@ -143,6 +145,7 @@ export async function updateWorker(req, res, next) {
       configuration,
       enabledTools,
       permissions,
+      workflowIds,
       status,
     } = req.body;
 
@@ -159,6 +162,7 @@ export async function updateWorker(req, res, next) {
         configuration,
         enabledTools,
         permissions,
+        workflowIds,
         status,
       },
       {

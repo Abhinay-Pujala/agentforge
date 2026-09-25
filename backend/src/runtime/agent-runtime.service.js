@@ -158,6 +158,22 @@ class AgentRuntime {
         }
 
         toolCallRecords.push(record);
+
+        // Stop immediately when a workflow needs user input.
+        // The execution controller will persist WAITING_FOR_INPUT and the
+        // frontend can resume the same execution instead of making the model
+        // continue with an incomplete request.
+        if (inputRequired) {
+          return {
+            success: true,
+            output: normalizedResponse.output || "Additional workflow input is required before this workflow can run.",
+            metadata: {
+              ...normalizedResponse.metadata,
+              inputRequired,
+            },
+            toolCalls: toolCallRecords,
+          };
+        }
       }
     }
   }

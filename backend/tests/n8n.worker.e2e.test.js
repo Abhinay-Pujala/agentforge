@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 
 const getWorkerExecutionContextMock = vi.fn();
+const assertWorkflowAccessMock = vi.fn();
 const createExecutionMock = vi.fn();
 const updateExecutionStatusMock = vi.fn();
 
@@ -64,7 +65,8 @@ describe("Worker → AgentRuntime → n8n → execution history", () => {
         permissions: ["n8n.trigger"],
         configuration: {
           n8n: {
-            workflow: "agentforge-test",
+            workflowId: "workflow-123",
+                workflow: "Gmail Automation",
           },
         },
       },
@@ -80,7 +82,8 @@ describe("Worker → AgentRuntime → n8n → execution history", () => {
           permissions: ["n8n.trigger"],
           configuration: {
             n8n: {
-              workflow: "agentforge-test",
+              workflowId: "workflow-123",
+                workflow: "Gmail Automation",
             },
           },
         },
@@ -108,7 +111,8 @@ describe("Worker → AgentRuntime → n8n → execution history", () => {
           success: true,
           result: {
             message: "Hello from n8n",
-            workflow: "agentforge-test",
+            workflowId: "workflow-123",
+                workflow: "Gmail Automation",
           },
         }),
       ),
@@ -127,7 +131,8 @@ describe("Worker → AgentRuntime → n8n → execution history", () => {
               id: "n8n-call-1",
               tool: "n8n.trigger",
               arguments: {
-                workflow: "agentforge-test",
+                workflowId: "workflow-123",
+                workflow: "Gmail Automation",
                 data: {
                   message: "Hello from Worker",
                 },
@@ -175,7 +180,7 @@ describe("Worker → AgentRuntime → n8n → execution history", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://localhost:5678/webhook/agentforge/test",
+      "https://example.com/webhook/gmail",
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({
@@ -189,7 +194,8 @@ describe("Worker → AgentRuntime → n8n → execution history", () => {
     const requestBody = JSON.parse(requestOptions.body);
 
     expect(requestBody).toMatchObject({
-      workflow: "agentforge-test",
+      workflowId: "workflow-123",
+                workflow: "Gmail Automation",
       data: {
         message: "Hello from Worker",
       },

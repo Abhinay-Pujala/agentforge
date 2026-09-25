@@ -55,6 +55,7 @@ class AgentRuntime {
 
     let toolRounds = 0;
     const toolCallRecords = [];
+    let inputRequired = null;
 
     while (true) {
       const modelResponse = await this.modelProvider.generate({
@@ -117,6 +118,14 @@ class AgentRuntime {
 
           record.result = toolResult;
           record.status = "COMPLETED";
+
+          if (toolResult?.status === "INPUT_REQUIRED") {
+            inputRequired = {
+              workflowId: toolResult.workflowId,
+              workflowName: toolResult.workflowName,
+              missingFields: toolResult.missingFields || [],
+            };
+          }
           record.durationMs = Date.now() - startedAt;
 
           messages.push({

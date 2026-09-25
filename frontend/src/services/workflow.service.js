@@ -37,3 +37,35 @@ export async function getWorkflowById(id) {
 
   return response.data.data;
 }
+
+export async function createWorkflow(workflowData) {
+  const response = await axios({
+    method: "POST",
+    url: BASE_URL,
+    headers: await getAuthHeaders(),
+    data: workflowData,
+  });
+
+  return response.data.data;
+}
+
+export async function updateWorkflow(id, workflowData) {
+  const response = await axios({
+    method: "PUT",
+    url: `${BASE_URL}/${id}`,
+    headers: await getAuthHeaders(),
+    data: workflowData,
+  });
+
+  return response.data.data;
+}
+
+export async function deleteWorkflow(id) {
+  const response = await axios({
+    method: "DELETE",
+    url: `${BASE_URL}/${id}`,
+    headers: await getAuthHeaders(),
+  });
+
+  return response.data.data;
+}

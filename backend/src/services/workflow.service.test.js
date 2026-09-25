@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   getWorkflowConfigurationStatus,
   withWorkflowConfigurationStatus,
-} from "../src/services/workflow.service.js";
+} from "./workflow.service.js";
 
 describe("workflow configuration status", () => {
   it("marks an enabled n8n workflow with a valid URL as ready", () => {

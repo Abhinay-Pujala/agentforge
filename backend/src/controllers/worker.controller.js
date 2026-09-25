@@ -313,7 +313,7 @@ export async function runWorker(req, res, next) {
         status: err.statusCode === 504 ? "TIMEOUT" : "FAILED",
         output: result?.output || null,
         error: {
-          message: err.message,
+          message: err.userMessage || err.message,
           code: err.code || err.statusCode || null,
         },
         completedAt,

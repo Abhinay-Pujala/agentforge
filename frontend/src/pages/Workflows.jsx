@@ -152,19 +152,24 @@ export default function Workflows() {
                         {workflow.category}
                       </span>
                       <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                          workflow.status === "enabled"
-                            ? "bg-emerald-500/10 text-emerald-400"
-                            : "bg-slate-800 text-slate-400"
-                        }`}
+                        className={`${workflow.configurationStatus?.code === "READY"
+                          ? "bg-emerald-500/10 text-emerald-400"
+                          : workflow.configurationStatus?.code === "CONFIGURATION_REQUIRED"
+                            ? "bg-amber-500/10 text-amber-400"
+                            : "bg-slate-800 text-slate-400"}`}
                       >
-                        {workflow.status}
-                      </span>
-                    </div>
+                        {workflow.configurationStatus?.label || workflow.status}
+                      </span>                    </div>
 
                     <p className="mt-2 text-sm text-slate-400">
                       {workflow.description}
                     </p>
+
+                    {workflow.configurationStatus?.description && (
+                      <p className="mt-2 text-xs text-slate-500">
+                        {workflow.configurationStatus.description}
+                      </p>
+                    )}
 
                     <div className="mt-3 space-y-1 text-xs text-slate-500">
                       <p>

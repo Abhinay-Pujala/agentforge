@@ -3,6 +3,7 @@ import cors from "cors";
 import authRoutes from "./routes/auth.routes.js";
 import WorkerRoutes from "./routes/worker.routes.js";
 import executionRoutes from "./routes/execution.routes.js";
+import workflowRoutes from "./routes/workflow.routes.js";
 import { errorHandler } from "./middleware/error.middleware.js";
 import { notFound } from "./middleware/notFound.middleware.js";
 
@@ -23,6 +24,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/workers", WorkerRoutes);
 
 app.use("/api/executions", executionRoutes);
+
+app.use("/api/workflows", workflowRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

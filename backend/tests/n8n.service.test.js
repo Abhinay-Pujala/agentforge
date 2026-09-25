@@ -3,8 +3,6 @@ import { describe, it, expect, vi, afterEach, beforeAll } from "vitest";
 let triggerN8nWorkflow;
 
 beforeAll(async () => {
-  vi.stubEnv("N8N_BASE_URL", "http://localhost:5678");
-  vi.stubEnv("N8N_WORKFLOW_AGENTFORGE_TEST", "webhook/agentforge/test");
   vi.stubEnv("N8N_WEBHOOK_SECRET", "test-agentforge-secret");
 
   ({ triggerN8nWorkflow } = await import("../src/services/n8n.service.js"));
@@ -32,7 +30,9 @@ describe("n8n service", () => {
     );
 
     const result = await triggerN8nWorkflow({
-      workflow: "agentforge-test",
+      workflowId: "workflow-123",
+      workflow: "Gmail Automation",
+      webhookUrl: "http://localhost:5678/webhook/gmail",
       data: {
         message: "Hello from AgentForge",
       },
@@ -54,7 +54,7 @@ describe("n8n service", () => {
 
     const [url, options] = fetch.mock.calls[0];
 
-    expect(url).toBe("http://localhost:5678/webhook/agentforge/test");
+    expect(url).toBe("http://localhost:5678/webhook/gmail");
 
     expect(options.method).toBe("POST");
     expect(options.headers["Content-Type"]).toBe("application/json");
@@ -63,7 +63,9 @@ describe("n8n service", () => {
     );
 
     expect(JSON.parse(options.body)).toEqual({
-      workflow: "agentforge-test",
+      workflowId: "workflow-123",
+      workflow: "Gmail Automation",
+      webhookUrl: "http://localhost:5678/webhook/gmail",
       data: {
         message: "Hello from AgentForge",
       },
@@ -92,7 +94,9 @@ describe("n8n service", () => {
 
     await expect(
       triggerN8nWorkflow({
-        workflow: "agentforge-test",
+        workflowId: "workflow-123",
+      workflow: "Gmail Automation",
+      webhookUrl: "http://localhost:5678/webhook/gmail",
         data: {
           message: "Hello from AgentForge",
         },
@@ -119,7 +123,9 @@ describe("n8n service", () => {
 
     await expect(
       triggerN8nWorkflow({
-        workflow: "agentforge-test",
+        workflowId: "workflow-123",
+      workflow: "Gmail Automation",
+      webhookUrl: "http://localhost:5678/webhook/gmail",
         data: {
           message: "Hello from AgentForge",
         },
@@ -142,7 +148,9 @@ describe("n8n service", () => {
 
     await expect(
       triggerN8nWorkflow({
-        workflow: "agentforge-test",
+        workflowId: "workflow-123",
+      workflow: "Gmail Automation",
+      webhookUrl: "http://localhost:5678/webhook/gmail",
         data: {
           message: "Hello from AgentForge",
         },

@@ -1,5 +1,5 @@
 import User from "../models/user.model.js";
-import { triggerN8nWorkflow } from "../services/n8n.service.js";
+import { classifyN8nError, triggerN8nWorkflow } from "../services/n8n.service.js";
 import {
   createWorkflow,
   deleteWorkflow,
@@ -36,6 +36,9 @@ export async function createWorkflowController(req, res, next) {
       data: withWorkflowConfigurationStatus(workflow),
     });
   } catch (err) {
+    if (err?.code?.startsWith("N8N_")) {
+      err.userMessage = err.userMessage || classifyN8nError(err).message;
+    }
     next(err);
   }
 }

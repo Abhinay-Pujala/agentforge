@@ -8,6 +8,14 @@ const workerMock = {
   findOne: vi.fn(),
 };
 
+const workflowMock = {
+  find: vi.fn(),
+};
+
+vi.mock("../src/models/workflow.model.js", () => ({
+  default: workflowMock,
+}));
+
 vi.mock("../src/models/user.model.js", () => ({
   default: userMock,
 }));
@@ -97,6 +105,11 @@ describe("Worker Execution Service", () => {
 
     userMock.findOne.mockResolvedValue(user);
     workerMock.findOne.mockResolvedValue(worker);
+    workflowMock.find.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        lean: vi.fn().mockResolvedValue([]),
+      }),
+    });
 
     const result = await getWorkerExecutionContext(
       "firebase-123",
@@ -119,6 +132,7 @@ describe("Worker Execution Service", () => {
         userId: user._id.toString(),
         workerId: worker._id.toString(),
         worker,
+        workflowCatalog: [],
       },
     });
   });

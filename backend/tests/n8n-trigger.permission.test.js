@@ -2,6 +2,26 @@ import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
 import ToolExecutionService from "../src/tools/tool-execution.service.js";
 import ToolRegistry from "../src/tools/tool-registry.js";
 
+vi.mock("../src/services/workflow.service.js", () => ({
+  assertWorkflowAccess: vi.fn().mockResolvedValue({
+    _id: "workflow-123",
+    name: "AgentForge Test",
+    status: "enabled",
+    webhook: {
+      provider: "n8n",
+      url: "http://localhost:5678/webhook/agentforge/test",
+    },
+    inputSchema: {
+      type: "object",
+      properties: {
+        message: { type: "string" },
+      },
+      required: ["message"],
+      additionalProperties: false,
+    },
+  }),
+}));
+
 let n8nTriggerTool;
 
 beforeAll(async () => {
@@ -29,7 +49,7 @@ describe("n8n.trigger permissions", () => {
       service.execute({
         toolName: "n8n.trigger",
         arguments: {
-          workflow: "agentforge-test",
+          workflowId: "workflow-123",
           data: {
             message: "Should not be sent",
           },
@@ -76,12 +96,9 @@ describe("n8n.trigger permissions", () => {
         workerId: "worker-123",
         executionId: "execution-123",
         worker: {
-          configuration: {
-            n8n: {
-              workflow: "agentforge-test",
-            },
-          },
+          workflowIds: ["workflow-123"],
         },
+        userId: "user-123",
       },
     });
 

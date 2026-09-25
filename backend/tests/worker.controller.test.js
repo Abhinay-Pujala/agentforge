@@ -55,6 +55,7 @@ describe("Worker controller tool configuration", () => {
         configuration: {},
         enabledTools: ["calculator"],
         permissions: ["calculator.execute"],
+        workflowIds: ["workflow-123"],
       },
       firebaseUser: {
         uid: "firebase-123",
@@ -75,6 +76,7 @@ describe("Worker controller tool configuration", () => {
       configuration: {},
       enabledTools: ["calculator"],
       permissions: ["calculator.execute"],
+      workflowIds: ["workflow-123"],
     });
 
     expect(res.status).toHaveBeenCalledWith(201);
@@ -121,6 +123,7 @@ describe("Worker controller tool configuration", () => {
         configuration: undefined,
         enabledTools: ["calculator"],
         permissions: ["calculator.execute"],
+        workflowIds: ["workflow-123"],
         status: undefined,
       },
       {

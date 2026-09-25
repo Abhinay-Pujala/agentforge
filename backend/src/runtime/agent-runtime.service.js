@@ -77,6 +77,16 @@ class AgentRuntime {
         configuration: worker.configuration || {},
         executionPolicy,
         tools: availableTools,
+        toolChoice:
+          toolRounds === 0 &&
+          availableTools.some((tool) => tool.name === "n8n.trigger") &&
+          Array.isArray(context.workflowCatalog) &&
+          context.workflowCatalog.length > 0
+            ? {
+                type: "function",
+                function: { name: "n8n.trigger" },
+              }
+            : undefined,
       });
 
       const normalizedResponse = normalizeModelResponse(modelResponse);

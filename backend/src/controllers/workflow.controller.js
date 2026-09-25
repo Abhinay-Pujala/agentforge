@@ -63,6 +63,9 @@ export async function getWorkflowList(req, res, next) {
       data: workflows.map(withWorkflowConfigurationStatus),
     });
   } catch (err) {
+    if (err?.code?.startsWith("N8N_")) {
+      err.userMessage = err.userMessage || classifyN8nError(err).message;
+    }
     next(err);
   }
 }

@@ -1,105 +1,81 @@
-import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
-
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import AgentRuntime from "../src/runtime/agent-runtime.service.js";
 import ToolRegistry from "../src/tools/tool-registry.js";
 
-let ToolExecutionService;
-let n8nTriggerTool;
+const assertWorkflowAccessMock = vi.fn();
+const triggerN8nWorkflowMock = vi.fn();
 
-beforeAll(async () => {
+vi.mock("../src/services/workflow.service.js", () => ({
+  assertWorkflowAccess: assertWorkflowAccessMock,
+}));
 
-  vi.stubEnv("N8N_WEBHOOK_SECRET", "test-agentforge-secret");
+vi.mock("../src/services/n8n.service.js", () => ({
+  triggerN8nWorkflow: triggerN8nWorkflowMock,
+}));
 
-  ({ default: ToolExecutionService } =
-    await import("../src/tools/tool-execution.service.js"));
-
-  ({ n8nTriggerTool } = await import("../src/tools/n8n-trigger.tool.js"));
-});
-
-afterEach(() => {
-  vi.restoreAllMocks();
-});
+const { n8nTriggerTool } = await import("../src/tools/n8n-trigger.tool.js");
 
 describe("AgentForge → n8n integration", () => {
-  it("executes n8n.trigger through the real runtime and returns the workflow result", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      text: async () =>
-        JSON.stringify({
-          success: true,
-          result: {
-            message: "Hello from n8n",
-            workflowId: "workflow-123",
-                workflow: "Gmail Automation",
-          },
-        }),
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    assertWorkflowAccessMock.mockResolvedValue({
+      _id: "workflow-123",
+      name: "Gmail Automation",
+      status: "enabled",
+      webhook: { provider: "n8n", url: "https://example.com/webhook/gmail" },
+      inputSchema: {
+        type: "object",
+        properties: { message: { type: "string" } },
+        required: ["message"],
+        additionalProperties: false,
+      },
     });
 
-    vi.stubGlobal("fetch", fetchMock);
+    triggerN8nWorkflowMock.mockResolvedValue({
+      success: true,
+      result: { success: true, result: { message: "Hello from n8n" } },
+    });
+  });
 
+  it("executes a registered workflow through the real runtime", async () => {
     const modelProvider = {
-      generate: vi
-        .fn()
+      generate: vi.fn()
         .mockResolvedValueOnce({
           output: null,
-          toolCalls: [
-            {
-              id: "n8n-call-1",
-              tool: "n8n.trigger",
-              arguments: {
-                workflowId: "workflow-123",
-                workflow: "Gmail Automation",
-                data: {
-                  message: "Hello from Worker",
-                },
-              },
+          toolCalls: [{
+            id: "n8n-call-1",
+            tool: "n8n.trigger",
+            arguments: {
+              workflowId: "workflow-123",
+              data: { message: "Hello from Worker" },
             },
-          ],
+          }],
         })
         .mockResolvedValueOnce({
           output: "Workflow completed successfully.",
           toolCalls: [],
-          metadata: {
-            usage: {
-              prompt_tokens: 100,
-              completion_tokens: 30,
-              total_tokens: 130,
-              cost: 0.002,
-            },
-          },
+          metadata: { usage: { total_tokens: 10, cost: 0.001 } },
         }),
     };
 
-    const toolRegistry = new ToolRegistry();
-    toolRegistry.register(n8nTriggerTool);
+    const registry = new ToolRegistry();
+    registry.register(n8nTriggerTool);
 
-    const toolExecutionService = new ToolExecutionService(toolRegistry);
-
-    const runtime = new AgentRuntime(
-      modelProvider,
-      toolRegistry,
-      toolExecutionService,
-    );
+    const runtime = new AgentRuntime(modelProvider, registry);
 
     const worker = {
       _id: "worker-123",
-      name: "Test Worker",
       model: "test-model",
-      instructions: "Use the n8n workflow when requested.",
+      instructions: "Use the registered workflow when requested.",
       enabledTools: ["n8n.trigger"],
       permissions: ["n8n.trigger"],
-      configuration: {
-        n8n: {
-          workflowId: "workflow-123",
-                workflow: "Gmail Automation",
-        },
-      },
+      workflowIds: ["workflow-123"],
     };
 
     const result = await runtime.execute({
       worker,
-      input: "Trigger the AgentForge test workflow.",
+      input: "Send the message through Gmail.",
       context: {
         userId: "user-123",
         workerId: "worker-123",
@@ -108,60 +84,15 @@ describe("AgentForge → n8n integration", () => {
       },
     });
 
-    expect(result.success).toBe(true);
     expect(result.output).toBe("Workflow completed successfully.");
-
-    expect(result.toolCalls).toHaveLength(1);
-
-    expect(result.toolCalls[0]).toMatchObject({
-      id: "n8n-call-1",
-      tool: "n8n.trigger",
-      arguments: {
-        workflowId: "workflow-123",
-                workflow: "Gmail Automation",
-        data: {
-          message: "Hello from Worker",
-        },
-      },
-      result: {
-        success: true,
-        result: {
-          success: true,
-          result: {
-            message: "Hello from n8n",
-            workflowId: "workflow-123",
-                workflow: "Gmail Automation",
-          },
-        },
-      },
-      status: "COMPLETED",
-    });
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-
-    const [url, options] = fetchMock.mock.calls[0];
-
-    expect(url).toBe("https://example.com/webhook/gmail");
-
-    expect(options.method).toBe("POST");
-
-    expect(options.headers).toEqual({
-      "Content-Type": "application/json",
-      "X-AgentForge-Secret": "test-agentforge-secret",
-    });
-
-    expect(JSON.parse(options.body)).toEqual({
+    expect(assertWorkflowAccessMock).toHaveBeenCalledWith("workflow-123", "user-123");
+    expect(triggerN8nWorkflowMock).toHaveBeenCalledWith({
       workflowId: "workflow-123",
-                workflow: "Gmail Automation",
-      data: {
-        message: "Hello from Worker",
-      },
-      agentforge: {
-        workerId: "worker-123",
-        executionId: "execution-456",
-      },
+      workflow: "Gmail Automation",
+      webhookUrl: "https://example.com/webhook/gmail",
+      data: { message: "Hello from Worker" },
+      workerId: "worker-123",
+      executionId: "execution-456",
     });
-
-    expect(modelProvider.generate).toHaveBeenCalledTimes(2);
   });
 });

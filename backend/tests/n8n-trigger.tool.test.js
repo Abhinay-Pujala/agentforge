@@ -1,71 +1,123 @@
-import { describe, it, expect, vi, beforeAll, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
-let n8nTriggerTool;
+const assertWorkflowAccessMock = vi.fn();
+const triggerN8nWorkflowMock = vi.fn();
 
-beforeAll(async () => {
-  vi.stubEnv("N8N_BASE_URL", "http://localhost:5678");
-  vi.stubEnv("N8N_WORKFLOW_AGENTFORGE_TEST", "webhook/agentforge/test");
+vi.mock("../src/services/workflow.service.js", () => ({
+  assertWorkflowAccess: assertWorkflowAccessMock,
+}));
 
-  ({ n8nTriggerTool } = await import("../src/tools/n8n-trigger.tool.js"));
-});
+vi.mock("../src/services/n8n.service.js", () => ({
+  triggerN8nWorkflow: triggerN8nWorkflowMock,
+}));
 
-afterEach(() => {
-  vi.restoreAllMocks();
-});
+const { n8nTriggerTool } = await import("../src/tools/n8n-trigger.tool.js");
 
 describe("n8n.trigger tool", () => {
-  it("triggers an n8n workflow with worker and execution context", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        text: async () =>
-          JSON.stringify({
-            success: true,
-            result: {
-              message: "Workflow completed",
-            },
-          }),
-      }),
-    );
+  beforeEach(() => {
+    vi.clearAllMocks();
 
+    assertWorkflowAccessMock.mockResolvedValue({
+      _id: "workflow-123",
+      name: "Gmail Automation",
+      status: "enabled",
+      webhook: {
+        provider: "n8n",
+        url: "https://example.com/webhook/gmail",
+      },
+      inputSchema: {
+        type: "object",
+        properties: {
+          message: { type: "string" },
+        },
+        required: ["message"],
+        additionalProperties: false,
+      },
+    });
+
+    triggerN8nWorkflowMock.mockResolvedValue({
+      success: true,
+      result: { message: "Workflow completed" },
+    });
+  });
+
+  it("resolves and triggers a registered workflow", async () => {
     const result = await n8nTriggerTool.execute(
       {
-        workflow: "agentforge-test",
-        data: {
-          message: "Hello from Worker",
-        },
+        workflowId: "workflow-123",
+        data: { message: "Hello from Worker" },
       },
       {
+        userId: "user-123",
         workerId: "worker-123",
         executionId: "execution-456",
         worker: {
-          configuration: {
-            n8n: {
-              workflow: "agentforge-test",
-            },
-          },
+          workflowIds: ["workflow-123"],
         },
       },
     );
 
-    expect(result.success).toBe(true);
-    expect(result.result.success).toBe(true);
+    expect(assertWorkflowAccessMock).toHaveBeenCalledWith(
+      "workflow-123",
+      "user-123",
+    );
 
-    expect(fetch).toHaveBeenCalledTimes(1);
-
-    const [, options] = fetch.mock.calls[0];
-
-    expect(JSON.parse(options.body)).toEqual({
-      workflow: "agentforge-test",
-      data: {
-        message: "Hello from Worker",
-      },
-      agentforge: {
-        workerId: "worker-123",
-        executionId: "execution-456",
-      },
+    expect(triggerN8nWorkflowMock).toHaveBeenCalledWith({
+      workflowId: "workflow-123",
+      workflow: "Gmail Automation",
+      webhookUrl: "https://example.com/webhook/gmail",
+      data: { message: "Hello from Worker" },
+      workerId: "worker-123",
+      executionId: "execution-456",
     });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a workflow not explicitly allowed for the worker", async () => {
+    await expect(
+      n8nTriggerTool.execute(
+        {
+          workflowId: "workflow-999",
+          data: { message: "Hello" },
+        },
+        {
+          userId: "user-123",
+          workerId: "worker-123",
+          executionId: "execution-456",
+          worker: {
+            workflowIds: ["workflow-123"],
+          },
+        },
+      ),
+    ).rejects.toMatchObject({
+      code: "N8N_WORKFLOW_NOT_ALLOWED",
+    });
+
+    expect(assertWorkflowAccessMock).not.toHaveBeenCalled();
+    expect(triggerN8nWorkflowMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid structured workflow input", async () => {
+    await expect(
+      n8nTriggerTool.execute(
+        {
+          workflowId: "workflow-123",
+          data: {},
+        },
+        {
+          userId: "user-123",
+          workerId: "worker-123",
+          executionId: "execution-456",
+          worker: {
+            workflowIds: ["workflow-123"],
+          },
+        },
+      ),
+    ).rejects.toMatchObject({
+      code: "N8N_WORKFLOW_INPUT_INVALID",
+    });
+
+    expect(triggerN8nWorkflowMock).not.toHaveBeenCalled();
   });
 });

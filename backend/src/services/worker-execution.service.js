@@ -2,17 +2,10 @@ import User from "../models/user.model.js";
 import Worker from "../models/worker.model.js";
 
 export async function getWorkerExecutionContext(firebaseUid, workerId) {
-  if (!firebaseUid) {
-    throw new Error("Authenticated user is required");
-  }
+  if (!firebaseUid) throw new Error("Authenticated user is required");
+  if (!workerId) throw new Error("Worker ID is required");
 
-  if (!workerId) {
-    throw new Error("Worker ID is required");
-  }
-
-  const user = await User.findOne({
-    firebaseUid,
-  });
+  const user = await User.findOne({ firebaseUid });
 
   if (!user) {
     const error = new Error("User not found. Please sync your account first.");

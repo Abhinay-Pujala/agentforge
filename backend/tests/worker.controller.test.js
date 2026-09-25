@@ -99,6 +99,7 @@ describe("Worker controller tool configuration", () => {
       body: {
         enabledTools: ["calculator"],
         permissions: ["calculator.execute"],
+        workflowIds: ["workflow-123"],
       },
       firebaseUser: {
         uid: "firebase-123",

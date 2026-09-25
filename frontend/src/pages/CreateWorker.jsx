@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "../layouts/DashboardLayout";
 import { createWorker } from "../services/worker.service";
+import { getWorkflows } from "../services/workflow.service";
 
 const AVAILABLE_TOOLS = [
   {
@@ -14,7 +15,7 @@ const AVAILABLE_TOOLS = [
   {
     name: "n8n.trigger",
     label: "n8n Workflow",
-    description: "Triggers a configured n8n workflow.",
+    description: "Triggers registered n8n workflows.",
     permission: "n8n.trigger",
   },
 ];
@@ -31,11 +32,39 @@ export default function CreateWorker() {
     status: "enabled",
     enabledTools: [],
     permissions: [],
+    workflowIds: [],
   });
-  const [n8nWorkflow, setN8nWorkflow] = useState("agentforge-test");
 
+  const [workflows, setWorkflows] = useState([]);
+  const [isLoadingWorkflows, setIsLoadingWorkflows] = useState(true);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    async function fetchWorkflows() {
+      try {
+        setIsLoadingWorkflows(true);
+
+        const result = await getWorkflows({ status: "enabled" });
+
+        setWorkflows(Array.isArray(result) ? result : result?.workflows || []);
+      } catch (err) {
+        console.error("Failed to fetch workflows:", err);
+
+        const message =
+          err.response?.data?.message ||
+          err.response?.data?.error ||
+          err.message ||
+          "Failed to load registered workflows.";
+
+        setError(message);
+      } finally {
+        setIsLoadingWorkflows(false);
+      }
+    }
+
+    fetchWorkflows();
+  }, []);
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -50,10 +79,6 @@ export default function CreateWorker() {
     setFormData((previous) => {
       const isEnabled = previous.enabledTools.includes(tool.name);
 
-      if (tool.name === "n8n.trigger" && isEnabled) {
-        setN8nWorkflow("agentforge-test");
-      }
-
       return {
         ...previous,
         enabledTools: isEnabled
@@ -64,6 +89,43 @@ export default function CreateWorker() {
               (permission) => permission !== tool.permission,
             )
           : [...previous.permissions, tool.permission],
+        workflowIds:
+          tool.name === "n8n.trigger" && isEnabled
+            ? []
+            : previous.workflowIds,
+      };
+    });
+  }
+
+  function handleWorkflowToggle(workflowId) {
+    setFormData((previous) => {
+      const isSelected = previous.workflowIds.includes(workflowId);
+
+      const workflowIds = isSelected
+        ? previous.workflowIds.filter((id) => id !== workflowId)
+        : [...previous.workflowIds, workflowId];
+
+      const hasWorkflows = workflowIds.length > 0;
+      const hasN8nTool = previous.enabledTools.includes("n8n.trigger");
+
+      return {
+        ...previous,
+        workflowIds,
+        enabledTools:
+          hasWorkflows && !hasN8nTool
+            ? [...previous.enabledTools, "n8n.trigger"]
+            : !hasWorkflows
+              ? previous.enabledTools.filter((name) => name !== "n8n.trigger")
+              : previous.enabledTools,
+        permissions:
+          hasWorkflows &&
+          !previous.permissions.includes("n8n.trigger")
+            ? [...previous.permissions, "n8n.trigger"]
+            : !hasWorkflows
+              ? previous.permissions.filter(
+                  (permission) => permission !== "n8n.trigger",
+                )
+              : previous.permissions,
       };
     });
   }
@@ -80,6 +142,14 @@ export default function CreateWorker() {
 
     if (!name || !description || !instructions) {
       setError("Please fill in all required fields.");
+      return;
+    }
+
+    if (
+      formData.enabledTools.includes("n8n.trigger") &&
+      formData.workflowIds.length === 0
+    ) {
+      setError("Select at least one registered n8n workflow.");
       return;
     }
 
@@ -103,10 +173,8 @@ export default function CreateWorker() {
       }
     }
 
-    if (formData.enabledTools.includes("n8n.trigger")) {
-      configuration.n8n = {
-        workflow: n8nWorkflow,
-      };
+    if (!formData.enabledTools.includes("n8n.trigger")) {
+      delete configuration.n8n;
     }
 
     const workerData = {
@@ -117,6 +185,7 @@ export default function CreateWorker() {
       status: formData.status,
       enabledTools: formData.enabledTools,
       permissions: formData.permissions,
+      workflowIds: formData.workflowIds,
     };
 
     if (model) {
@@ -354,21 +423,23 @@ export default function CreateWorker() {
             <div className="space-y-3">
               {AVAILABLE_TOOLS.map((tool) => {
                 const isEnabled = formData.enabledTools.includes(tool.name);
+                const isN8n = tool.name === "n8n.trigger";
 
                 return (
                   <label
                     key={tool.name}
-                    className={`flex cursor-pointer items-start gap-4 rounded-xl border p-4 transition-all ${
+                    className={`flex items-start gap-4 rounded-xl border p-4 transition-all ${
                       isEnabled
                         ? "border-indigo-500/50 bg-indigo-500/5"
                         : "border-slate-800 bg-slate-950 hover:border-slate-700"
-                    }`}
+                    } ${isN8n && isLoadingWorkflows ? "cursor-wait" : "cursor-pointer"}`}
                   >
                     <input
                       type="checkbox"
                       checked={isEnabled}
                       onChange={() => handleToolToggle(tool)}
                       className="mt-1 h-4 w-4 cursor-pointer accent-indigo-500"
+                      disabled={isN8n && isLoadingWorkflows}
                     />
 
                     <div className="min-w-0 flex-1">
@@ -403,42 +474,87 @@ export default function CreateWorker() {
             </div>
           </section>
 
-          {/* n8n Configuration */}
+          {/* Registered n8n Workflows */}
           {formData.enabledTools.includes("n8n.trigger") && (
             <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
               <div className="mb-6">
                 <h2 className="text-lg font-semibold text-white">
-                  n8n Workflow Configuration
+                  Assigned n8n Workflows
                 </h2>
 
                 <p className="mt-1 text-sm text-slate-400">
-                  Choose the n8n workflow this worker is allowed to trigger.
+                  Select the registered workflows this worker is explicitly
+                  allowed to trigger.
                 </p>
               </div>
 
-              <div>
-                <label
-                  htmlFor="n8nWorkflow"
-                  className="mb-2 block text-sm font-medium text-slate-200"
-                >
-                  Workflow
-                </label>
+              {isLoadingWorkflows ? (
+                <div className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950 px-4 py-4 text-sm text-slate-400">
+                  <Loader2 size={17} className="animate-spin" />
+                  Loading registered workflows...
+                </div>
+              ) : workflows.length === 0 ? (
+                <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-4 text-sm text-amber-300">
+                  No enabled workflows are registered yet. Create a workflow
+                  in the Workflow Registry first.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {workflows.map((workflow) => {
+                    const isSelected = formData.workflowIds.includes(
+                      workflow._id,
+                    );
 
-                <select
-                  id="n8nWorkflow"
-                  value={n8nWorkflow}
-                  onChange={(event) => setN8nWorkflow(event.target.value)}
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none transition-all focus:border-indigo-500"
-                >
-                  <option value="agentforge-test">
-                    AgentForge Test Workflow
-                  </option>
-                </select>
+                    return (
+                      <label
+                        key={workflow._id}
+                        className={`flex cursor-pointer items-start gap-4 rounded-xl border p-4 transition-all ${
+                          isSelected
+                            ? "border-indigo-500/50 bg-indigo-500/5"
+                            : "border-slate-800 bg-slate-950 hover:border-slate-700"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleWorkflowToggle(workflow._id)}
+                          className="mt-1 h-4 w-4 cursor-pointer accent-indigo-500"
+                        />
 
-                <p className="mt-2 text-xs text-slate-500">
-                  The workflow endpoint is managed securely by AgentForge.
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-3">
+                            <h3 className="text-sm font-medium text-white">
+                              {workflow.name}
+                            </h3>
+
+                            <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-400">
+                              {workflow.category}
+                            </span>
+                          </div>
+
+                          <p className="mt-1 text-sm text-slate-400">
+                            {workflow.description}
+                          </p>
+
+                          <p className="mt-2 text-xs text-slate-500">
+                            Registry ID:{" "}
+                            <span className="font-mono text-slate-400">
+                              {workflow._id}
+                            </span>
+                          </p>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+
+              {formData.workflowIds.length > 0 && (
+                <p className="mt-3 text-xs text-slate-500">
+                  {formData.workflowIds.length} workflow
+                  {formData.workflowIds.length === 1 ? "" : "s"} assigned.
                 </p>
-              </div>
+              )}
             </section>
           )}
 

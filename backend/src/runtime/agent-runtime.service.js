@@ -79,6 +79,13 @@ class AgentRuntime {
           result.toolCalls = toolCallRecords;
         }
 
+        if (inputRequired) {
+          result.metadata = {
+            ...result.metadata,
+            inputRequired,
+          };
+        }
+
         return result;
       }
 

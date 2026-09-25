@@ -86,7 +86,7 @@ describe("n8n.trigger permissions", () => {
     const result = await service.execute({
       toolName: "n8n.trigger",
       arguments: {
-        workflow: "agentforge-test",
+        workflowId: "workflow-123",
         data: {
           message: "Allowed Request",
         },

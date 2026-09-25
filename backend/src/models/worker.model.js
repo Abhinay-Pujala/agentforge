@@ -7,49 +7,30 @@ const workerSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-    name: {
-      type: String,
-      required: true,
-      trim: true,
-      maxlength: 100,
-    },
-    description: {
-      type: String,
-      required: true,
-      trim: true,
-      maxlength: 300,
-    },
-    instructions: {
-      type: String,
-      required: true,
-      trim: true,
-    },
+    name: { type: String, required: true, trim: true, maxlength: 100 },
+    description: { type: String, required: true, trim: true, maxlength: 300 },
+    instructions: { type: String, required: true, trim: true },
     model: {
       type: String,
       default: "gemini-3.6-flash-lite",
       trim: true,
     },
-    configuration: {
-      type: Object,
-      default: {},
-    },
-    enabledTools: {
-      type: [String],
-      default: [],
-    },
-    permissions: {
-      type: [String],
-      default: [],
-    },
+    configuration: { type: Object, default: {} },
+    enabledTools: { type: [String], default: [] },
+    permissions: { type: [String], default: [] },
+    workflowIds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Workflow",
+      },
+    ],
     status: {
       type: String,
       enum: ["enabled", "disabled"],
       default: "enabled",
     },
   },
-  {
-    timestamps: true,
-  },
+  { timestamps: true },
 );
 
 const Worker = mongoose.model("Worker", workerSchema);

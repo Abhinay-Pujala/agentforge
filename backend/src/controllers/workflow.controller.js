@@ -5,6 +5,7 @@ import {
   getWorkflowById,
   getWorkflows,
   updateWorkflow,
+  withWorkflowConfigurationStatus,
 } from "../services/workflow.service.js";
 
 async function getUser(req) {
@@ -30,7 +31,7 @@ export async function createWorkflowController(req, res, next) {
     return res.status(201).json({
       success: true,
       message: "Workflow created successfully.",
-      data: workflow,
+      data: withWorkflowConfigurationStatus(workflow),
     });
   } catch (err) {
     next(err);
@@ -54,7 +55,7 @@ export async function getWorkflowList(req, res, next) {
     return res.status(200).json({
       success: true,
       message: "Workflows fetched successfully.",
-      data: workflows,
+      data: workflows.map(withWorkflowConfigurationStatus),
     });
   } catch (err) {
     next(err);

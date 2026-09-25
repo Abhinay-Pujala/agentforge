@@ -59,6 +59,7 @@ class OpenRouterProvider extends ModelProvider {
       configuration = {},
       executionPolicy,
       tools = [],
+      toolChoice,
     } = request;
 
     const toolNameMap = createToolNameMap(tools);
@@ -92,6 +93,21 @@ class OpenRouterProvider extends ModelProvider {
                     parameters: tool.schema,
                   },
                 })),
+              }
+            : {}),
+          ...(toolChoice
+            ? {
+                tool_choice: {
+                  ...toolChoice,
+                  ...(toolChoice.function?.name
+                    ? {
+                        function: {
+                          ...toolChoice.function,
+                          name: toProviderToolName(toolChoice.function.name),
+                        },
+                      }
+                    : {}),
+                },
               }
             : {}),
         }),

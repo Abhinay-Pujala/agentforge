@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Loader2, Plus, RefreshCw, Trash2, XCircle } from "lucide-react";
 import DashboardLayout from "../layouts/DashboardLayout";
-import { deleteWorkflow, getWorkflows } from "../services/workflow.service";
+import { deleteWorkflow, getWorkflows, testWorkflow } from "../services/workflow.service";
 
 export default function Workflows() {
   const navigate = useNavigate();
@@ -10,6 +10,8 @@ export default function Workflows() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState("");
+  const [testingId, setTestingId] = useState("");
+  const [testResults, setTestResults] = useState({});
 
   async function loadWorkflows() {
     try {
@@ -33,6 +35,58 @@ export default function Workflows() {
   useEffect(() => {
     loadWorkflows();
   }, []);
+
+
+
+  async function handleTest(workflow) {
+    if (workflow.configurationStatus?.code !== "READY") {
+      setError("This workflow is not ready to test.");
+      return;
+    }
+
+    if (
+      !window.confirm(
+        `Run a test request for "${workflow.name}"? The connected n8n workflow may perform its configured actions.`,
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setError("");
+      setTestingId(workflow._id);
+      setTestResults((previous) => ({
+        ...previous,
+        [workflow._id]: null,
+      }));
+
+      const result = await testWorkflow(workflow._id);
+      setTestResults((previous) => ({
+        ...previous,
+        [workflow._id]: {
+          success: true,
+          message: "Workflow test completed successfully.",
+          result,
+        },
+      }));
+    } catch (err) {
+      console.error("Workflow test failed:", err);
+      setTestResults((previous) => ({
+        ...previous,
+        [workflow._id]: {
+          success: false,
+          message:
+            err.response?.data?.message ||
+            err.response?.data?.error ||
+            err.message ||
+            "Workflow test failed.",
+        },
+      }));
+    } finally {
+      setTestingId("");
+    }
+  }
+
 
   async function handleDelete(workflow) {
     if (
@@ -188,6 +242,22 @@ export default function Workflows() {
                   </div>
 
                   <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleTest(workflow)}
+                      disabled={
+                        testingId === workflow._id ||
+                        workflow.configurationStatus?.code !== "READY"
+                      }
+                      className="flex items-center gap-2 rounded-xl border border-emerald-500/20 px-4 py-2.5 text-sm font-medium text-emerald-400 transition-all hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                    >
+                      {testingId === workflow._id ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <CheckCircle2 size={16} />
+                      )}
+                      Test
+                    </button>
                     <Link
                       to={`/dashboard/workflows/${workflow._id}/edit`}
                       className="rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-medium text-slate-300 transition-all hover:bg-slate-800 hover:text-white"
@@ -207,6 +277,26 @@ export default function Workflows() {
                       )}
                       Delete
                     </button>
+
+
+                    {testResults[workflow._id] && (
+                      <div
+                        className={`mt-4 rounded-xl border px-4 py-3 text-sm ${
+                          testResults[workflow._id].success
+                            ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
+                            : "border-red-500/20 bg-red-500/10 text-red-300"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 font-medium">
+                          {testResults[workflow._id].success ? (
+                            <CheckCircle2 size={16} />
+                          ) : (
+                            <XCircle size={16} />
+                          )}
+                          {testResults[workflow._id].message}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

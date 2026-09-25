@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import DashboardLayout from "../layouts/DashboardLayout.jsx";
-import { getWorkerById, deleteWorker, updateWorkerStatus, runWorker } from "../services/worker.service.js";
+import { getWorkerById, deleteWorker, updateWorkerStatus, runWorker, resumeWorkerExecution } from "../services/worker.service.js";
 import { getExecutions } from "../services/execution.service.js";
 import { getWorkflows } from "../services/workflow.service.js";
 
@@ -25,6 +25,9 @@ export default function WorkerDetails() {
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [executionInput, setExecutionInput] = useState("");
   const [executionOutput, setExecutionOutput] = useState("");
+  const [waitingExecution, setWaitingExecution] = useState(null);
+  const [resumeInput, setResumeInput] = useState("");
+  const [isResuming, setIsResuming] = useState(false);
   const [executionError, setExecutionError] = useState("");
   const [isExecuting, setIsExecuting] = useState(false);
   const [executions, setExecutions] = useState([]);
@@ -96,12 +99,33 @@ export default function WorkerDetails() {
       setExecutionOutput("");
       const result = await runWorker(worker._id, input);
       setExecutionOutput(result.output || "");
+      setWaitingExecution(result.metadata?.inputRequired ? { executionId: result.metadata.inputRequired.executionId || result.metadata?.executionId, ...result.metadata.inputRequired } : null);
       await fetchExecutions();
     } catch (err) {
       console.error("Failed to run worker:", err);
       setExecutionError(err.response?.data?.message || err.message || "Failed to run worker.");
     } finally {
       setIsExecuting(false);
+    }
+  }
+
+  async function handleResumeExecution(event) {
+    event.preventDefault();
+    if (!waitingExecution?.executionId || !resumeInput.trim()) return;
+
+    try {
+      setIsResuming(true);
+      setExecutionError("");
+      const result = await resumeWorkerExecution(worker._id, waitingExecution.executionId, resumeInput.trim());
+      setExecutionOutput(result.output || "");
+      setWaitingExecution(result.metadata?.inputRequired ? { executionId: waitingExecution.executionId, ...result.metadata.inputRequired } : null);
+      setResumeInput("");
+      await fetchExecutions();
+    } catch (err) {
+      console.error("Failed to resume worker:", err);
+      setExecutionError(err.response?.data?.message || err.message || "Failed to resume worker.");
+    } finally {
+      setIsResuming(false);
     }
   }
 
@@ -159,6 +183,37 @@ export default function WorkerDetails() {
             {executionError && <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">{executionError}</div>}
             <div className="flex items-center justify-between gap-4"><p className="text-xs text-slate-500">{worker.status === "enabled" ? "Worker is ready to execute." : "Enable this worker before running it."}</p><button type="submit" disabled={isExecuting || worker.status !== "enabled" || !executionInput.trim()} className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 cursor-pointer">{isExecuting ? <><Loader2 size={17} className="animate-spin" /> Running...</> : <><Send size={17} /> Run Worker</>}</button></div>
           </form>
+          {waitingExecution && (
+            <div className="mt-6 border-t border-slate-800 pt-6">
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4">
+                <h3 className="text-sm font-semibold text-amber-300">Additional information required</h3>
+                <p className="mt-1 text-sm text-amber-200/70">
+                  {waitingExecution.workflowName
+                    ? `Workflow "${waitingExecution.workflowName}" needs more information before it can continue.`
+                    : "This worker needs more information before it can continue."}
+                </p>
+                {waitingExecution.missingFields?.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {waitingExecution.missingFields.map((field) => (
+                      <span key={field} className="rounded-lg bg-slate-950 px-2.5 py-1 font-mono text-xs text-amber-200">{field}</span>
+                    ))}
+                  </div>
+                )}
+                <form onSubmit={handleResumeExecution} className="mt-4 flex flex-col gap-3 sm:flex-row">
+                  <input
+                    value={resumeInput}
+                    onChange={(event) => setResumeInput(event.target.value)}
+                    placeholder="Provide the missing information..."
+                    disabled={isResuming}
+                    className="min-w-0 flex-1 rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-white placeholder:text-slate-600 focus:border-amber-500"
+                  />
+                  <button type="submit" disabled={isResuming || !resumeInput.trim()} className="rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-amber-500 disabled:opacity-50 cursor-pointer">
+                    {isResuming ? "Continuing..." : "Continue"}
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
           {executionOutput && <div className="mt-6 border-t border-slate-800 pt-6"><h3 className="mb-3 text-sm font-semibold text-white">Worker Response</h3><div className="whitespace-pre-wrap rounded-xl bg-slate-950 p-5 text-sm leading-7 text-slate-300">{executionOutput}</div></div>}
         </section>
 

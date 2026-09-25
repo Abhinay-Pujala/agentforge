@@ -53,6 +53,20 @@ export const n8nTriggerTool = {
     );
 
     if (!validation.valid) {
+      const missingFields = validation.errors
+        .filter((message) => message.endsWith(" is required"))
+        .map((message) => message.replace(/^arguments\\./, "").replace(/ is required$/, ""));
+
+      if (missingFields.length > 0) {
+        return {
+          status: "INPUT_REQUIRED",
+          workflowId: workflow._id.toString(),
+          workflowName: workflow.name,
+          missingFields,
+          message: "Additional workflow input is required before this workflow can run.",
+        };
+      }
+
       const error = new Error(
         `Invalid input for workflow "${workflow.name}": ${validation.errors.join(", ")}`,
       );

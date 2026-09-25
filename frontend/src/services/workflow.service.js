@@ -69,3 +69,15 @@ export async function deleteWorkflow(id) {
 
   return response.data.data;
 }
+
+
+export async function testWorkflow(id, data = {}) {
+  const response = await axios({
+    method: "POST",
+    url: `${BASE_URL}/${id}/test`,
+    headers: await getAuthHeaders(),
+    data: { data },
+  });
+
+  return response.data.data;
+}

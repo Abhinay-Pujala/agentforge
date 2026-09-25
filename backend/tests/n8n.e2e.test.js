@@ -7,8 +7,7 @@ let ToolExecutionService;
 let n8nTriggerTool;
 
 beforeAll(async () => {
-  vi.stubEnv("N8N_BASE_URL", "http://localhost:5678");
-  vi.stubEnv("N8N_WORKFLOW_AGENTFORGE_TEST", "webhook/agentforge/test");
+
   vi.stubEnv("N8N_WEBHOOK_SECRET", "test-agentforge-secret");
 
   ({ default: ToolExecutionService } =
@@ -31,7 +30,8 @@ describe("AgentForge → n8n integration", () => {
           success: true,
           result: {
             message: "Hello from n8n",
-            workflow: "agentforge-test",
+            workflowId: "workflow-123",
+                workflow: "Gmail Automation",
           },
         }),
     });
@@ -48,7 +48,8 @@ describe("AgentForge → n8n integration", () => {
               id: "n8n-call-1",
               tool: "n8n.trigger",
               arguments: {
-                workflow: "agentforge-test",
+                workflowId: "workflow-123",
+                workflow: "Gmail Automation",
                 data: {
                   message: "Hello from Worker",
                 },
@@ -90,7 +91,8 @@ describe("AgentForge → n8n integration", () => {
       permissions: ["n8n.trigger"],
       configuration: {
         n8n: {
-          workflow: "agentforge-test",
+          workflowId: "workflow-123",
+                workflow: "Gmail Automation",
         },
       },
     };
@@ -115,7 +117,8 @@ describe("AgentForge → n8n integration", () => {
       id: "n8n-call-1",
       tool: "n8n.trigger",
       arguments: {
-        workflow: "agentforge-test",
+        workflowId: "workflow-123",
+                workflow: "Gmail Automation",
         data: {
           message: "Hello from Worker",
         },
@@ -126,7 +129,8 @@ describe("AgentForge → n8n integration", () => {
           success: true,
           result: {
             message: "Hello from n8n",
-            workflow: "agentforge-test",
+            workflowId: "workflow-123",
+                workflow: "Gmail Automation",
           },
         },
       },
@@ -137,7 +141,7 @@ describe("AgentForge → n8n integration", () => {
 
     const [url, options] = fetchMock.mock.calls[0];
 
-    expect(url).toBe("http://localhost:5678/webhook/agentforge/test");
+    expect(url).toBe("https://example.com/webhook/gmail");
 
     expect(options.method).toBe("POST");
 
@@ -147,7 +151,8 @@ describe("AgentForge → n8n integration", () => {
     });
 
     expect(JSON.parse(options.body)).toEqual({
-      workflow: "agentforge-test",
+      workflowId: "workflow-123",
+                workflow: "Gmail Automation",
       data: {
         message: "Hello from Worker",
       },

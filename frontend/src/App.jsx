@@ -11,6 +11,8 @@ import EditWorker from "./pages/EditWorker.jsx";
 import Executions from "./pages/Executions.jsx";
 import ExecutionDetails from "./pages/ExecutionDetails.jsx";
 import Tools from "./pages/Tools.jsx";
+import Workflows from "./pages/Workflows.jsx";
+import CreateWorkflow from "./pages/CreateWorkflow.jsx";
 
 export default function App() {
   return (
@@ -87,6 +89,22 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Tools />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/workflows"
+          element={
+            <ProtectedRoute>
+              <Workflows />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/workflows/new"
+          element={
+            <ProtectedRoute>
+              <CreateWorkflow />
             </ProtectedRoute>
           }
         />

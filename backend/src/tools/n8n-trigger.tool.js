@@ -55,7 +55,7 @@ export const n8nTriggerTool = {
     if (!validation.valid) {
       const missingFields = validation.errors
         .filter((message) => message.endsWith(" is required"))
-        .map((message) => message.replace(/^arguments\\./, "").replace(/ is required$/, ""));
+        .map((message) => message.replace(/^arguments\./, "").replace(/ is required$/, ""));
 
       if (missingFields.length > 0) {
         return {

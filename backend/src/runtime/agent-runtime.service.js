@@ -46,8 +46,21 @@ class AgentRuntime {
 
     const messages = buildPrompt(worker, input, context);
 
+    const enabledToolNames = new Set(worker.enabledTools || []);
+
+    // A Worker with assigned workflows must be able to use the generic
+    // workflow trigger even if it was created before workflow-tool
+    // assignment was introduced. Authorization is still enforced by the
+    // tool itself using the Worker's permissions and workflowIds.
+    if (
+      Array.isArray(context.workflowCatalog) &&
+      context.workflowCatalog.length > 0
+    ) {
+      enabledToolNames.add("n8n.trigger");
+    }
+
     const availableTools = this.toolRegistry.getForWorker(
-      worker.enabledTools || [],
+      Array.from(enabledToolNames),
     );
 
     const maxToolRounds =

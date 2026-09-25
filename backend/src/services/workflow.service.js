@@ -49,6 +49,56 @@ export async function deleteWorkflow(workflowId, ownerId) {
   });
 }
 
+export function getWorkflowConfigurationStatus(workflow) {
+  if (workflow?.status === "disabled") {
+    return {
+      code: "DISABLED",
+      label: "Disabled",
+      description: "This workflow is disabled and cannot be triggered.",
+    };
+  }
+
+  const provider = workflow?.webhook?.provider;
+  const webhookUrl = workflow?.webhook?.url;
+
+  if (provider !== "n8n" || typeof webhookUrl !== "string" || !webhookUrl.trim()) {
+    return {
+      code: "CONFIGURATION_REQUIRED",
+      label: "Configuration Required",
+      description: "The workflow is missing a valid n8n connection configuration.",
+    };
+  }
+
+  try {
+    const url = new URL(webhookUrl);
+    if (!["http:", "https:"].includes(url.protocol)) {
+      throw new Error("Unsupported protocol");
+    }
+  } catch {
+    return {
+      code: "CONFIGURATION_REQUIRED",
+      label: "Configuration Required",
+      description: "The workflow does not have a valid n8n webhook URL.",
+    };
+  }
+
+  return {
+    code: "READY",
+    label: "Ready",
+    description: "The workflow has the configuration required to be tested.",
+  };
+}
+
+export function withWorkflowConfigurationStatus(workflow) {
+  const plainWorkflow =
+    typeof workflow?.toObject === "function" ? workflow.toObject() : { ...workflow };
+
+  return {
+    ...plainWorkflow,
+    configurationStatus: getWorkflowConfigurationStatus(plainWorkflow),
+  };
+}
+
 export async function assertWorkflowAccess(workflowId, ownerId) {
   const workflow = await getWorkflowById(workflowId, ownerId);
 

@@ -14,6 +14,31 @@ const AVAILABLE_TOOLS = {
   "n8n.trigger": { label: "n8n Workflow", description: "Triggers a configured n8n workflow.", permission: "n8n.trigger" },
 };
 
+function getInputRequired(result) {
+  return (
+    result?.metadata?.inputRequired ||
+    result?.inputRequired ||
+    result?.data?.metadata?.inputRequired ||
+    result?.data?.inputRequired ||
+    null
+  );
+}
+
+function buildWaitingExecution(result, fallbackExecutionId = null) {
+  const inputRequired = getInputRequired(result);
+  if (!inputRequired) return null;
+
+  return {
+    ...inputRequired,
+    executionId:
+      inputRequired.executionId ||
+      result?.metadata?.executionId ||
+      result?.executionId ||
+      fallbackExecutionId ||
+      null,
+  };
+}
+
 export default function WorkerDetails() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -63,7 +88,19 @@ export default function WorkerDetails() {
     try {
       setIsLoadingExecutions(true);
       const result = await getExecutions({ workerId: id, limit: 10 });
-      setExecutions(result.executions);
+      const nextExecutions = result.executions || [];
+      setExecutions(nextExecutions);
+
+      // Recover the waiting state from persisted execution status even if
+      // the run API response did not expose inputRequired metadata.
+      const waiting = nextExecutions.find((execution) => execution.status === "WAITING_FOR_INPUT");
+      if (waiting) {
+        setWaitingExecution((current) => current || {
+          executionId: waiting._id,
+          missingFields: [],
+          workflowName: null,
+        });
+      }
     } catch (err) {
       console.error("Failed to fetch execution history:", err);
     } finally {
@@ -97,9 +134,16 @@ export default function WorkerDetails() {
       setIsExecuting(true);
       setExecutionError("");
       setExecutionOutput("");
+      setWaitingExecution(null);
+
       const result = await runWorker(worker._id, input);
-      setExecutionOutput(result.output || "");
-      setWaitingExecution(result.metadata?.inputRequired ? { executionId: result.metadata.inputRequired.executionId || result.metadata?.executionId, ...result.metadata.inputRequired } : null);
+      setExecutionOutput(result?.output || "");
+
+      const waiting = buildWaitingExecution(result);
+      if (waiting?.executionId) {
+        setWaitingExecution(waiting);
+      }
+
       await fetchExecutions();
     } catch (err) {
       console.error("Failed to run worker:", err);
@@ -116,10 +160,22 @@ export default function WorkerDetails() {
     try {
       setIsResuming(true);
       setExecutionError("");
-      const result = await resumeWorkerExecution(worker._id, waitingExecution.executionId, resumeInput.trim());
-      setExecutionOutput(result.output || "");
-      setWaitingExecution(result.metadata?.inputRequired ? { executionId: waitingExecution.executionId, ...result.metadata.inputRequired } : null);
+
+      const result = await resumeWorkerExecution(
+        worker._id,
+        waitingExecution.executionId,
+        resumeInput.trim(),
+      );
+
+      setExecutionOutput(result?.output || "");
+
+      const waiting = buildWaitingExecution(
+        result,
+        waitingExecution.executionId,
+      );
+      setWaitingExecution(waiting);
       setResumeInput("");
+
       await fetchExecutions();
     } catch (err) {
       console.error("Failed to resume worker:", err);

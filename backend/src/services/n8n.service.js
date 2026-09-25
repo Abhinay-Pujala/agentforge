@@ -5,6 +5,54 @@ import {
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 
+export function classifyN8nError(error) {
+  if (error?.code === "N8N_TIMEOUT" || error?.name === "AbortError") {
+    return {
+      code: "N8N_TIMEOUT",
+      category: "TIMEOUT",
+      message: "The n8n workflow did not respond within the allowed time.",
+      retryable: true,
+    };
+  }
+
+  if (error?.code === "N8N_WEBHOOK_NOT_CONFIGURED") {
+    return {
+      code: "N8N_WEBHOOK_NOT_CONFIGURED",
+      category: "CONFIGURATION",
+      message: "The workflow is missing a valid n8n webhook configuration.",
+      retryable: false,
+    };
+  }
+
+  if (error?.code === "N8N_REQUEST_FAILED") {
+    if (typeof error?.status === "number" && error.status >= 400) {
+      return {
+        code: "N8N_REQUEST_FAILED",
+        category: "WORKFLOW_ERROR",
+        message:
+          error.response?.error?.message ||
+          "The n8n workflow rejected the request.",
+        retryable: error.status >= 500,
+      };
+    }
+
+    return {
+      code: "N8N_CONNECTION_FAILED",
+      category: "CONNECTION",
+      message: "AgentForge could not connect to the n8n workflow.",
+      retryable: true,
+    };
+  }
+
+  return {
+    code: error?.code || "N8N_UNKNOWN_ERROR",
+    category: "UNKNOWN",
+    message: "The n8n workflow could not be completed.",
+    retryable: false,
+  };
+}
+
+
 export async function triggerN8nWorkflow({
   workflowId,
   workflow,
@@ -71,10 +119,16 @@ export async function triggerN8nWorkflow({
         code: "N8N_TIMEOUT",
       });
     }
-    if (error.code) throw error;
+    if (error.code) {
+      const classified = classifyN8nError(error);
+      error.userMessage = classified.message;
+      error.category = classified.category;
+      error.retryable = classified.retryable;
+      throw error;
+    }
     throw Object.assign(
       new Error(error.message || "Failed to trigger n8n workflow"),
-      { code: "N8N_REQUEST_FAILED" },
+      { code: "N8N_REQUEST_FAILED", category: "CONNECTION" },
     );
   } finally {
     clearTimeout(timeout);

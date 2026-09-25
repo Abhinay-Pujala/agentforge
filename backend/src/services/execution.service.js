@@ -80,6 +80,27 @@ export async function getExecutions({
   };
 }
 
+export async function resumeExecution(executionId, userId, updates) {
+  return Execution.findOneAndUpdate(
+    {
+      _id: executionId,
+      user: userId,
+      status: "WAITING_FOR_INPUT",
+    },
+    {
+      ...updates,
+      status: "RUNNING",
+      error: {
+        message: null,
+        code: null,
+      },
+    },
+    {
+      new: true,
+    },
+  );
+}
+
 export async function getExecutionById(executionId, userId) {
   const execution = await Execution.findOne({
     _id: executionId,

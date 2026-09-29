@@ -112,6 +112,7 @@ class AgentRuntime {
 
     let toolRounds = 0;
     let workflowToolRetryUsed = false;
+    let successfulWorkflowExecution = false;
     const toolCallRecords = [];
     let inputRequired = null;
 
@@ -134,6 +135,23 @@ class AgentRuntime {
       const normalizedResponse = normalizeModelResponse(modelResponse);
 
       if (normalizedResponse.toolCalls.length === 0) {
+        // A resumed execution has already supplied the missing input. If a
+        // workflow successfully ran, the model's next text response is the
+        // final answer—not another missing-input request.
+        if (
+          context.resumedFromExecutionId &&
+          successfulWorkflowExecution
+        ) {
+          const result = {
+            success: true,
+            output: normalizedResponse.output,
+            metadata: normalizedResponse.metadata,
+            toolCalls: toolCallRecords,
+          };
+
+          return result;
+        }
+
         if (hasWorkflowTools && !workflowToolRetryUsed) {
           workflowToolRetryUsed = true;
 
@@ -230,6 +248,14 @@ class AgentRuntime {
 
           record.result = toolResult;
           record.status = "COMPLETED";
+
+          if (
+            toolCall.tool === "n8n.trigger" &&
+            toolResult?.success === true &&
+            toolResult?.status !== "INPUT_REQUIRED"
+          ) {
+            successfulWorkflowExecution = true;
+          }
 
           if (toolResult?.status === "INPUT_REQUIRED") {
             inputRequired = {

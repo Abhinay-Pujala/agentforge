@@ -156,6 +156,7 @@ class AgentRuntime {
     let successfulWorkflowExecution = false;
     const toolCallRecords = [];
     const successfulWorkflowKeys = new Set();
+    const successfulWorkflowIds = new Set();
     let inputRequired = null;
 
     while (true) {
@@ -291,22 +292,28 @@ class AgentRuntime {
 
         try {
           const workflowExecutionKey = getWorkflowExecutionKey(toolCall);
+          const workflowId = toolCall.arguments?.workflowId ?? null;
 
-          // Never repeat an identical external workflow side effect within
-          // one agent execution. This protects email/send/create actions from
-          // an LLM that keeps requesting the same successful tool call.
+          // A successful registered workflow is a completed side effect for
+          // this execution. Do not let the model repeatedly trigger the same
+          // workflow with slightly different arguments and exhaust the round
+          // budget (for example, repeatedly sending the same email).
           const duplicateSuccessfulWorkflow =
             workflowExecutionKey &&
             successfulWorkflowKeys.has(workflowExecutionKey);
 
-          const toolResult = duplicateSuccessfulWorkflow
-            ? {
-                success: true,
-                status: "ALREADY_COMPLETED",
-                message:
-                  "This exact workflow action was already completed during this execution. Do not execute it again.",
-              }
-            : await this.toolExecutionService.execute({
+          const repeatedSuccessfulWorkflow =
+            workflowId && successfulWorkflowIds.has(workflowId);
+
+          const toolResult =
+            duplicateSuccessfulWorkflow || repeatedSuccessfulWorkflow
+              ? {
+                  success: true,
+                  status: "ALREADY_COMPLETED",
+                  message:
+                    "This workflow was already completed successfully during this execution. Do not execute it again. Continue the original request using its existing result.",
+                }
+              : await this.toolExecutionService.execute({
                 toolName: toolCall.tool,
                 arguments: toolCall.arguments,
                 timeoutMs: executionPolicy?.toolTimeoutMs ?? 10_000,
@@ -331,6 +338,11 @@ class AgentRuntime {
             const workflowExecutionKey = getWorkflowExecutionKey(toolCall);
             if (workflowExecutionKey) {
               successfulWorkflowKeys.add(workflowExecutionKey);
+            }
+
+            const workflowId = toolCall.arguments?.workflowId ?? null;
+            if (workflowId) {
+              successfulWorkflowIds.add(workflowId);
             }
           }
 

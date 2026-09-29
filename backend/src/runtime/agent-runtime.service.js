@@ -396,12 +396,15 @@ class AgentRuntime {
               workflow.id?.toString() === workflowId?.toString(),
           );
 
-          const inventedEmailMessage =
+          const workflowRequiresUserMessage =
             toolCall.tool === "n8n.trigger" &&
             !duplicateSuccessfulWorkflow &&
             !repeatedSuccessfulWorkflow &&
+            workflowDefinition?.inputSchema?.required?.includes("message");
+
+          const inventedEmailMessage =
+            workflowRequiresUserMessage &&
             String(toolCall.arguments?.data?.message || "").trim() &&
-            /email/i.test(workflowDefinition?.name || "") &&
             !isLikelyUserProvidedMessage(
               toolCall.arguments.data.message,
               input,

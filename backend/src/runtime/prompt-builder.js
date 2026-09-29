@@ -30,10 +30,11 @@ export function buildPrompt(worker, input, context = {}) {
       `Workflow execution rules:
 - When the user's request matches an available workflow, you MUST call n8n.trigger. Do not replace the workflow call with a conversational response.
 - Choose the matching workflow from the available workflow catalog and pass its exact workflow ID.
-- Include only values explicitly provided by the user or safely resolved from previous tool results.
+- Extract workflow fields from the user's natural-language request when their values are clearly stated. For example, if the user says "send an email saying the meeting is tomorrow", the email message is the content after "saying".
+- Use only values explicitly provided by the user or safely resolved from previous tool results.
 - Never invent, guess, or use placeholder values for required workflow fields.
 - Never use words such as "recipient", "name", "email", "unknown", "user", "person", or similar placeholders as actual field values.
-- If a required workflow field is missing, omit that field from data. Do not ask for it in text before the tool call.
+- If a required workflow field cannot be resolved from the request or previous workflow results, omit only that field from data. Do not ask for it in text before the tool call.
 - The workflow validator will detect missing required fields and return INPUT_REQUIRED, causing the execution to enter WAITING_FOR_INPUT.
 - If a workflow requires a value that can be resolved by another available workflow, call the resolving workflow first.
 - After a resolving workflow returns the required value, use that value in the next workflow call.

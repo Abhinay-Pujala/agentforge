@@ -148,12 +148,12 @@ class AgentRuntime {
     let toolRounds = 0;
     let workflowToolRetryUsed = false;
     let workflowCompletionRetryUsed = false;
-    let workflowCallRequired = hasWorkflowTools && workflowIntentDetected;
     let inputRecoveryAttempts = 0;
     const workflowIntentDetected = shouldAttemptWorkflow(
       input,
       context.workflowCatalog,
     );
+    let workflowCallRequired = hasWorkflowTools && workflowIntentDetected;
     let successfulWorkflowExecution = false;
     const toolCallRecords = [];
     const successfulWorkflowKeys = new Set();

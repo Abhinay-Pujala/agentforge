@@ -268,6 +268,26 @@ class AgentRuntime {
       toolRounds += 1;
 
       if (toolRounds > maxToolRounds) {
+        if (inputRequired) {
+          return {
+            success: true,
+            output:
+              "Additional information is required before this action can continue.",
+            metadata: { inputRequired },
+            toolCalls: toolCallRecords,
+          };
+        }
+
+        if (successfulWorkflowExecution) {
+          return {
+            success: true,
+            output:
+              "The requested workflow action was completed successfully.",
+            metadata: {},
+            toolCalls: toolCallRecords,
+          };
+        }
+
         throw new Error(
           `Maximum tool execution rounds exceeded: ${maxToolRounds}`,
         );
@@ -383,6 +403,19 @@ class AgentRuntime {
         }
 
         toolCallRecords.push(record);
+
+        // A repeated successful workflow is already complete. Stop the
+        // orchestration loop instead of allowing the model to call the same
+        // external side effect until the round limit is exhausted.
+        if (record.result?.status === "ALREADY_COMPLETED") {
+          return {
+            success: true,
+            output:
+              "The requested workflow action was completed successfully.",
+            metadata: {},
+            toolCalls: toolCallRecords,
+          };
+        }
 
         if (inputRequired) {
           if (inputRecoveryAttempts >= 2) {

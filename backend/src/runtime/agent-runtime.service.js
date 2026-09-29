@@ -164,6 +164,20 @@ class AgentRuntime {
           continue;
         }
 
+        if (inputRequired) {
+          return {
+            success: true,
+            output:
+              normalizedResponse.output ||
+              "Additional workflow input is required before this action can continue.",
+            metadata: {
+              ...normalizedResponse.metadata,
+              inputRequired,
+            },
+            toolCalls: toolCallRecords,
+          };
+        }
+
         if (hasWorkflowTools && workflowToolRetryUsed) {
           const workflow = inferWorkflowForInput(
             context.workflowCatalog,
@@ -293,17 +307,11 @@ class AgentRuntime {
         toolCallRecords.push(record);
 
         if (inputRequired) {
-          return {
-            success: true,
-            output:
-              normalizedResponse.output ||
-              "Additional workflow input is required before this workflow can run.",
-            metadata: {
-              ...normalizedResponse.metadata,
-              inputRequired,
-            },
-            toolCalls: toolCallRecords,
-          };
+          messages.push({
+            role: "system",
+            content:
+              `The last n8n workflow call could not run because these required fields are missing: ${inputRequired.missingFields.join(", ")}. Re-evaluate the original user request and provide every required field that can be safely extracted from it or from previous workflow results. Do not invent missing values. Call n8n.trigger again with the fields you can resolve. Leave only genuinely unresolved fields absent so the runtime can request them from the user.`,
+          });
         }
       }
     }

@@ -309,6 +309,51 @@ class AgentRuntime {
       });
 
       for (const toolCall of normalizedResponse.toolCalls) {
+        const workflowId = toolCall.arguments?.workflowId ?? null;
+        const repeatedSuccessfulWorkflow =
+          toolCall.tool === "n8n.trigger" &&
+          workflowId &&
+          successfulWorkflowIds.has(workflowId);
+
+        if (repeatedSuccessfulWorkflow) {
+          messages.push({
+            role: "tool",
+            tool_call_id: toolCall.id,
+            content: JSON.stringify({
+              success: true,
+              status: "ALREADY_COMPLETED",
+              message:
+                "This workflow was already completed successfully during this execution. Do not execute it again.",
+            }),
+          });
+
+          messages.push({
+            role: "system",
+            content:
+              "The requested workflow has already completed successfully. Do not call any workflow again. Write a natural, concise final response that confirms what was completed and includes useful details from the completed workflow result. Do not mention internal workflow IDs, duplicate prevention, or tool execution.",
+          });
+
+          const finalModelResponse = await this.modelProvider.generate({
+            model: worker.model,
+            messages,
+            configuration: worker.configuration || {},
+            executionPolicy,
+            tools: [],
+          });
+
+          const normalizedFinalResponse =
+            normalizeModelResponse(finalModelResponse);
+
+          return {
+            success: true,
+            output:
+              normalizedFinalResponse.output ||
+              "Done — the requested action was completed successfully.",
+            metadata: normalizedFinalResponse.metadata,
+            toolCalls: toolCallRecords,
+          };
+        }
+
         const record = createToolCallRecord(toolCall);
         const startedAt = Date.now();
 

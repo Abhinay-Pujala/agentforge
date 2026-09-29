@@ -4,6 +4,48 @@ import ToolExecutionService from "../tools/tool-execution.service.js";
 
 const DEFAULT_MAX_TOOL_ROUNDS = 5;
 
+function tokenize(value) {
+  return String(value || "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length > 2);
+}
+
+function inferWorkflowForInput(workflowCatalog, input) {
+  if (!Array.isArray(workflowCatalog) || workflowCatalog.length === 0) {
+    return null;
+  }
+
+  const inputTokens = new Set(tokenize(input));
+
+  const ranked = workflowCatalog
+    .map((workflow) => {
+      const searchable = [
+        workflow.name,
+        workflow.description,
+        workflow.category,
+      ]
+        .filter(Boolean)
+        .join(" ");
+
+      const score = tokenize(searchable).reduce(
+        (total, token) => total + (inputTokens.has(token) ? 1 : 0),
+        0,
+      );
+
+      return { workflow, score };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  return ranked[0]?.score > 0 ? ranked[0].workflow : null;
+}
+
+function getRequiredWorkflowFields(workflow) {
+  return Array.isArray(workflow?.inputSchema?.required)
+    ? workflow.inputSchema.required
+    : [];
+}
+
 function createToolCallRecord(toolCall) {
   return {
     id: toolCall.id,
@@ -102,6 +144,34 @@ class AgentRuntime {
           });
 
           continue;
+        }
+
+        if (hasWorkflowTools && workflowToolRetryUsed) {
+          const workflow = inferWorkflowForInput(
+            context.workflowCatalog,
+            input,
+          );
+
+          if (workflow) {
+            const requiredFields = getRequiredWorkflowFields(workflow);
+
+            return {
+              success: true,
+              output:
+                normalizedResponse.output ||
+                "Additional workflow input is required before this action can continue.",
+              metadata: {
+                ...normalizedResponse.metadata,
+                inputRequired: {
+                  workflowId: workflow.id,
+                  workflowName: workflow.name,
+                  missingFields: requiredFields,
+                  reason: "WORKFLOW_TOOL_NOT_CALLED",
+                },
+              },
+              toolCalls: toolCallRecords,
+            };
+          }
         }
 
         const result = {

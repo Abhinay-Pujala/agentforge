@@ -28,16 +28,39 @@ function inferWorkflowForInput(workflowCatalog, input) {
         .filter(Boolean)
         .join(" ");
 
-      const score = tokenize(searchable).reduce(
-        (total, token) => total + (inputTokens.has(token) ? 1 : 0),
-        0,
+      const matchedTokens = tokenize(searchable).filter((token) =>
+        inputTokens.has(token),
       );
 
-      return { workflow, score };
+      return {
+        workflow,
+        score: matchedTokens.length,
+      };
     })
     .sort((a, b) => b.score - a.score);
 
   return ranked[0]?.score > 0 ? ranked[0].workflow : null;
+}
+
+const WORKFLOW_ACTION_WORDS = new Set([
+  "send", "create", "add", "update", "edit", "delete", "remove",
+  "find", "lookup", "search", "fetch", "get", "retrieve", "save",
+  "store", "insert", "append", "notify", "schedule", "trigger",
+  "run", "execute", "generate", "post", "publish", "upload",
+  "download", "sync", "export", "import", "move", "copy", "archive",
+  "assign",
+]);
+
+function hasWorkflowIntent(input) {
+  return tokenize(input).some((token) => WORKFLOW_ACTION_WORDS.has(token));
+}
+
+function shouldAttemptWorkflow(input, workflowCatalog) {
+  if (!hasWorkflowIntent(input)) {
+    return false;
+  }
+
+  return Boolean(inferWorkflowForInput(workflowCatalog, input));
 }
 
 function getRequiredWorkflowFields(workflow) {
@@ -112,6 +135,10 @@ class AgentRuntime {
 
     let toolRounds = 0;
     let workflowToolRetryUsed = false;
+    const workflowIntentDetected = shouldAttemptWorkflow(
+      input,
+      context.workflowCatalog,
+    );
     let successfulWorkflowExecution = false;
     const toolCallRecords = [];
     let inputRequired = null;
@@ -124,7 +151,8 @@ class AgentRuntime {
         executionPolicy,
         tools: availableTools,
         toolChoice:
-          hasWorkflowTools && (toolRounds === 0 || inputRequired)
+          hasWorkflowTools &&
+          (inputRequired || (workflowToolRetryUsed && workflowIntentDetected))
             ? {
                 type: "function",
                 function: { name: "n8n.trigger" },
@@ -135,35 +163,6 @@ class AgentRuntime {
       const normalizedResponse = normalizeModelResponse(modelResponse);
 
       if (normalizedResponse.toolCalls.length === 0) {
-        // A resumed execution has already supplied the missing input. If a
-        // workflow successfully ran, the model's next text response is the
-        // final answer—not another missing-input request.
-        if (
-          context.resumedFromExecutionId &&
-          successfulWorkflowExecution
-        ) {
-          const result = {
-            success: true,
-            output: normalizedResponse.output,
-            metadata: normalizedResponse.metadata,
-            toolCalls: toolCallRecords,
-          };
-
-          return result;
-        }
-
-        if (hasWorkflowTools && !workflowToolRetryUsed) {
-          workflowToolRetryUsed = true;
-
-          messages.push({
-            role: "system",
-            content:
-              "A workflow is required for this action. Do not answer conversationally. You MUST call n8n.trigger now. If required workflow data is missing, omit that field from data rather than inventing or asking for it in text. The workflow validator will return INPUT_REQUIRED and the execution will enter WAITING_FOR_INPUT.",
-          });
-
-          continue;
-        }
-
         if (inputRequired) {
           return {
             success: true,
@@ -178,7 +177,32 @@ class AgentRuntime {
           };
         }
 
-        if (hasWorkflowTools && workflowToolRetryUsed) {
+        if (successfulWorkflowExecution) {
+          return {
+            success: true,
+            output: normalizedResponse.output,
+            metadata: normalizedResponse.metadata,
+            toolCalls: toolCallRecords,
+          };
+        }
+
+        if (
+          hasWorkflowTools &&
+          workflowIntentDetected &&
+          !workflowToolRetryUsed
+        ) {
+          workflowToolRetryUsed = true;
+
+          messages.push({
+            role: "system",
+            content:
+              "This request matches an available workflow. Execute the matching workflow now. You MUST call n8n.trigger. Extract every workflow field whose value is clearly present in the original user request or previous tool results. Omit only genuinely unresolved fields; never invent placeholders. The workflow validator will handle missing input.",
+          });
+
+          continue;
+        }
+
+        if (hasWorkflowTools && workflowIntentDetected && workflowToolRetryUsed) {
           const workflow = inferWorkflowForInput(
             context.workflowCatalog,
             input,
@@ -214,13 +238,6 @@ class AgentRuntime {
 
         if (toolCallRecords.length > 0) {
           result.toolCalls = toolCallRecords;
-        }
-
-        if (inputRequired) {
-          result.metadata = {
-            ...result.metadata,
-            inputRequired,
-          };
         }
 
         return result;
@@ -280,6 +297,7 @@ class AgentRuntime {
               workflowId: toolResult.workflowId,
               workflowName: toolResult.workflowName,
               missingFields: toolResult.missingFields || [],
+              validationErrors: toolResult.validationErrors || [],
             };
           }
 
@@ -314,7 +332,7 @@ class AgentRuntime {
           messages.push({
             role: "system",
             content:
-              `The last n8n workflow call could not run because these required fields are missing: ${inputRequired.missingFields.join(", ")}. Re-evaluate the original user request and provide every required field that can be safely extracted from it or from previous workflow results. Do not invent missing values. Call n8n.trigger again with the fields you can resolve. Leave only genuinely unresolved fields absent so the runtime can request them from the user.`,
+              `The last n8n workflow call could not run because its input was incomplete or invalid. Missing fields: ${inputRequired.missingFields.join(", ") || "none"}. Validation details: ${inputRequired.validationErrors.join("; ") || "none"}. Re-evaluate the original user request and previous workflow results. Correct every field you can safely determine. Do not invent values or placeholders. Call n8n.trigger again with corrected/known data and leave only genuinely unresolved required fields absent so the runtime can request them from the user.`,
           });
         }
       }

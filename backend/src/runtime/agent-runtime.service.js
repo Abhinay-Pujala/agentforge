@@ -64,6 +64,23 @@ function shouldAttemptWorkflow(input, workflowCatalog) {
   return Boolean(inferWorkflowForInput(workflowCatalog, input));
 }
 
+function isLikelyUserProvidedMessage(message, input) {
+  const messageText = String(message || "").trim().toLowerCase();
+  const inputText = String(input || "").trim().toLowerCase();
+
+  if (!messageText || !inputText) return false;
+  if (inputText.includes(messageText)) return true;
+
+  const messageTokens = tokenize(messageText);
+  const inputTokens = new Set(tokenize(inputText));
+  if (messageTokens.length === 0) return false;
+
+  const matched = messageTokens.filter((token) => inputTokens.has(token)).length;
+  const overlap = matched / messageTokens.length;
+
+  return messageTokens.length === 1 ? matched === 1 : overlap >= 0.5;
+}
+
 function getRequiredWorkflowFields(workflow) {
   return Array.isArray(workflow?.inputSchema?.required)
     ? workflow.inputSchema.required
@@ -372,21 +389,53 @@ class AgentRuntime {
           const repeatedSuccessfulWorkflow =
             workflowId && successfulWorkflowIds.has(workflowId);
 
-          const toolResult =
-            duplicateSuccessfulWorkflow || repeatedSuccessfulWorkflow
-              ? {
-                  success: true,
-                  status: "ALREADY_COMPLETED",
-                  message:
-                    "This workflow was already completed successfully during this execution. Do not execute it again. Continue the original request using its existing result.",
-                }
-              : await this.toolExecutionService.execute({
-                toolName: toolCall.tool,
-                arguments: toolCall.arguments,
-                timeoutMs: executionPolicy?.toolTimeoutMs ?? 10_000,
-                permissions: worker.permissions || [],
-                context,
-              });
+          let toolResult;
+
+          const workflowDefinition = context.workflowCatalog?.find(
+            (workflow) =>
+              workflow.id?.toString() === workflowId?.toString(),
+          );
+
+          const inventedEmailMessage =
+            toolCall.tool === "n8n.trigger" &&
+            !duplicateSuccessfulWorkflow &&
+            !repeatedSuccessfulWorkflow &&
+            String(toolCall.arguments?.data?.message || "").trim() &&
+            /email/i.test(workflowDefinition?.name || "") &&
+            !isLikelyUserProvidedMessage(
+              toolCall.arguments.data.message,
+              input,
+            );
+
+          if (inventedEmailMessage) {
+            toolResult = {
+              status: "INPUT_REQUIRED",
+              workflowId,
+              workflowName: workflowDefinition?.name || "Email workflow",
+              missingFields: ["message"],
+              validationErrors: [
+                "message must be explicitly provided by the user",
+              ],
+              message:
+                "An email message must be provided by the user before the email can be sent.",
+            };
+          } else {
+            toolResult =
+              duplicateSuccessfulWorkflow || repeatedSuccessfulWorkflow
+                ? {
+                    success: true,
+                    status: "ALREADY_COMPLETED",
+                    message:
+                      "This workflow was already completed successfully during this execution. Do not execute it again. Continue the original request using its existing result.",
+                  }
+                : await this.toolExecutionService.execute({
+                    toolName: toolCall.tool,
+                    arguments: toolCall.arguments,
+                    timeoutMs: executionPolicy?.toolTimeoutMs ?? 10_000,
+                    permissions: worker.permissions || [],
+                    context,
+                  });
+          }
 
           record.result = toolResult;
           record.status = "COMPLETED";

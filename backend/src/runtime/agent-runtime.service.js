@@ -15,6 +15,7 @@ function createToolCallRecord(toolCall) {
     durationMs: null,
   };
 }
+
 class AgentRuntime {
   constructor(modelProvider, toolRegistry) {
     if (!modelProvider || typeof modelProvider.generate !== "function") {
@@ -48,10 +49,6 @@ class AgentRuntime {
 
     const enabledToolNames = new Set(worker.enabledTools || []);
 
-    // A Worker with assigned workflows must be able to use the generic
-    // workflow trigger even if it was created before workflow-tool
-    // assignment was introduced. Authorization is still enforced by the
-    // tool itself using the Worker's permissions and workflowIds.
     if (
       Array.isArray(context.workflowCatalog) &&
       context.workflowCatalog.length > 0
@@ -63,10 +60,16 @@ class AgentRuntime {
       Array.from(enabledToolNames),
     );
 
+    const hasWorkflowTools =
+      Array.isArray(context.workflowCatalog) &&
+      context.workflowCatalog.length > 0 &&
+      availableTools.some((tool) => tool.name === "n8n.trigger");
+
     const maxToolRounds =
       executionPolicy?.maxToolRounds ?? DEFAULT_MAX_TOOL_ROUNDS;
 
     let toolRounds = 0;
+    let workflowToolRetryUsed = false;
     const toolCallRecords = [];
     let inputRequired = null;
 
@@ -78,10 +81,7 @@ class AgentRuntime {
         executionPolicy,
         tools: availableTools,
         toolChoice:
-          toolRounds === 0 &&
-          availableTools.some((tool) => tool.name === "n8n.trigger") &&
-          Array.isArray(context.workflowCatalog) &&
-          context.workflowCatalog.length > 0
+          hasWorkflowTools && toolRounds === 0
             ? {
                 type: "function",
                 function: { name: "n8n.trigger" },
@@ -92,6 +92,18 @@ class AgentRuntime {
       const normalizedResponse = normalizeModelResponse(modelResponse);
 
       if (normalizedResponse.toolCalls.length === 0) {
+        if (hasWorkflowTools && !workflowToolRetryUsed) {
+          workflowToolRetryUsed = true;
+
+          messages.push({
+            role: "system",
+            content:
+              "A workflow is required for this action. Do not answer conversationally. You MUST call n8n.trigger now. If required workflow data is missing, omit that field from data rather than inventing or asking for it in text. The workflow validator will return INPUT_REQUIRED and the execution will enter WAITING_FOR_INPUT.",
+          });
+
+          continue;
+        }
+
         const result = {
           success: true,
           output: normalizedResponse.output,
@@ -156,6 +168,7 @@ class AgentRuntime {
               missingFields: toolResult.missingFields || [],
             };
           }
+
           record.durationMs = Date.now() - startedAt;
 
           messages.push({
@@ -164,7 +177,8 @@ class AgentRuntime {
             content: JSON.stringify(toolResult),
           });
         } catch (error) {
-          record.status = error?.code === "TOOL_TIMEOUT" ? "TIMEOUT" : "FAILED";
+          record.status =
+            error?.code === "TOOL_TIMEOUT" ? "TIMEOUT" : "FAILED";
 
           record.error = {
             message: error?.message || "Tool execution failed",
@@ -182,14 +196,12 @@ class AgentRuntime {
 
         toolCallRecords.push(record);
 
-        // Stop immediately when a workflow needs user input.
-        // The execution controller will persist WAITING_FOR_INPUT and the
-        // frontend can resume the same execution instead of making the model
-        // continue with an incomplete request.
         if (inputRequired) {
           return {
             success: true,
-            output: normalizedResponse.output || "Additional workflow input is required before this workflow can run.",
+            output:
+              normalizedResponse.output ||
+              "Additional workflow input is required before this workflow can run.",
             metadata: {
               ...normalizedResponse.metadata,
               inputRequired,

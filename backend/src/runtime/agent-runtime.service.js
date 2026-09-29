@@ -69,16 +69,17 @@ function isLikelyUserProvidedMessage(message, input) {
   const inputText = String(input || "").trim().toLowerCase();
 
   if (!messageText || !inputText) return false;
-  if (inputText.includes(messageText)) return true;
 
-  const messageTokens = tokenize(messageText);
-  const inputTokens = new Set(tokenize(inputText));
-  if (messageTokens.length === 0) return false;
+  // Never treat a message as user-provided merely because it shares a few
+  // words with the request. For example, "Hello Abhinay!" must not be
+  // accepted for "Send an email to Abhinay.".
+  const normalize = (value) =>
+    String(value || "")
+      .replace(/[“”]/g, '"')
+      .replace(/\\s+/g, " ")
+      .trim();
 
-  const matched = messageTokens.filter((token) => inputTokens.has(token)).length;
-  const overlap = matched / messageTokens.length;
-
-  return messageTokens.length === 1 ? matched === 1 : overlap >= 0.5;
+  return normalize(inputText).includes(normalize(messageText));
 }
 
 function getRequiredWorkflowFields(workflow) {

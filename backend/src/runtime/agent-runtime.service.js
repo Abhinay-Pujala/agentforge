@@ -148,6 +148,7 @@ class AgentRuntime {
     let toolRounds = 0;
     let workflowToolRetryUsed = false;
     let workflowCompletionRetryUsed = false;
+    let workflowCallRequired = hasWorkflowTools && workflowIntentDetected;
     let inputRecoveryAttempts = 0;
     const workflowIntentDetected = shouldAttemptWorkflow(
       input,
@@ -168,7 +169,7 @@ class AgentRuntime {
         tools: availableTools,
         toolChoice:
           hasWorkflowTools &&
-          (inputRequired || (workflowToolRetryUsed && workflowIntentDetected))
+          workflowCallRequired
             ? {
                 type: "function",
                 function: { name: "n8n.trigger" },
@@ -214,6 +215,7 @@ class AgentRuntime {
           !workflowToolRetryUsed
         ) {
           workflowToolRetryUsed = true;
+          workflowCallRequired = true;
 
           messages.push({
             role: "system",
@@ -344,6 +346,10 @@ class AgentRuntime {
           record.result = toolResult;
           record.status = "COMPLETED";
 
+          if (toolCall.tool === "n8n.trigger") {
+            workflowCallRequired = toolResult?.status === "INPUT_REQUIRED";
+          }
+
           if (toolResult?.status !== "INPUT_REQUIRED") {
             inputRequired = null;
           }
@@ -408,11 +414,29 @@ class AgentRuntime {
         // orchestration loop instead of allowing the model to call the same
         // external side effect until the round limit is exhausted.
         if (record.result?.status === "ALREADY_COMPLETED") {
+          messages.push({
+            role: "system",
+            content:
+              "The requested workflow has already completed successfully. Do not call any workflow again. Write the final response to the user naturally and concisely. Explain what action was completed and include useful details available in the workflow results, such as the recipient or other relevant result data. Never claim an action that was not completed.",
+          });
+
+          const finalModelResponse = await this.modelProvider.generate({
+            model: worker.model,
+            messages,
+            configuration: worker.configuration || {},
+            executionPolicy,
+            tools: [],
+          });
+
+          const normalizedFinalResponse =
+            normalizeModelResponse(finalModelResponse);
+
           return {
             success: true,
             output:
+              normalizedFinalResponse.output ||
               "The requested workflow action was completed successfully.",
-            metadata: {},
+            metadata: normalizedFinalResponse.metadata,
             toolCalls: toolCallRecords,
           };
         }
@@ -429,6 +453,8 @@ class AgentRuntime {
               toolCalls: toolCallRecords,
             };
           }
+
+          workflowCallRequired = true;
 
           messages.push({
             role: "system",

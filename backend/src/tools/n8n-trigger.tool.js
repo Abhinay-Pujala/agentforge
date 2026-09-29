@@ -69,6 +69,7 @@ export const n8nTriggerTool = {
           workflowId: workflow._id.toString(),
           workflowName: workflow.name,
           missingFields,
+          validationErrors: validation.errors,
           message:
             "Additional workflow input is required before this workflow can run.",
         };

@@ -2,7 +2,7 @@ import { buildPrompt } from "./prompt-builder.js";
 import { normalizeModelResponse } from "./model-response.js";
 import ToolExecutionService from "../tools/tool-execution.service.js";
 
-const DEFAULT_MAX_TOOL_ROUNDS = 5;
+const DEFAULT_MAX_TOOL_ROUNDS = 8;
 
 function tokenize(value) {
   return String(value || "")
@@ -148,6 +148,7 @@ class AgentRuntime {
     let toolRounds = 0;
     let workflowToolRetryUsed = false;
     let workflowCompletionRetryUsed = false;
+    let inputRecoveryAttempts = 0;
     const workflowIntentDetected = shouldAttemptWorkflow(
       input,
       context.workflowCatalog,
@@ -334,6 +335,8 @@ class AgentRuntime {
           }
 
           if (toolResult?.status === "INPUT_REQUIRED") {
+            inputRecoveryAttempts += 1;
+
             inputRequired = {
               workflowId: toolResult.workflowId,
               workflowName: toolResult.workflowName,
@@ -370,10 +373,22 @@ class AgentRuntime {
         toolCallRecords.push(record);
 
         if (inputRequired) {
+          if (inputRecoveryAttempts >= 2) {
+            return {
+              success: true,
+              output:
+                "Additional information is required before this action can continue.",
+              metadata: {
+                inputRequired,
+              },
+              toolCalls: toolCallRecords,
+            };
+          }
+
           messages.push({
             role: "system",
             content:
-              `The last n8n workflow call could not run because its input was incomplete or invalid. Missing fields: ${inputRequired.missingFields.join(", ") || "none"}. Validation details: ${inputRequired.validationErrors.join("; ") || "none"}. Re-evaluate the original user request and previous workflow results. Correct every field you can safely determine. Do not invent values or placeholders. Call n8n.trigger again with corrected/known data and leave only genuinely unresolved required fields absent so the runtime can request them from the user.`,
+              `The last n8n workflow call could not run because its input was incomplete or invalid. Missing fields: ${inputRequired.missingFields.join(", ") || "none"}. Validation details: ${inputRequired.validationErrors.join("; ") || "none"}. Re-evaluate the original user request and previous workflow results. Correct every field you can safely determine. Do not invent values or placeholders. Call n8n.trigger again with corrected/known data and leave only genuinely unresolved required fields absent so the runtime can request them from the user. This is the final automatic input-recovery attempt for this workflow.`,
           });
         }
       }

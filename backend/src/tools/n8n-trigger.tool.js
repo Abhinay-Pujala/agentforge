@@ -4,7 +4,8 @@ import { triggerN8nWorkflow } from "../services/n8n.service.js";
 
 export const n8nTriggerTool = {
   name: "n8n.trigger",
-  description: "Trigger a registered n8n workflow with structured data.",
+  description:
+    "Trigger a registered n8n workflow. When a matching workflow is needed, call this tool even if some required workflow fields are missing. Omit unknown fields; the workflow input validator will return INPUT_REQUIRED so the execution can pause for user input.",
   permission: "n8n.trigger",
 
   schema: {
@@ -16,7 +17,8 @@ export const n8nTriggerTool = {
       },
       data: {
         type: "object",
-        description: "Structured data to send to the workflow.",
+        description:
+          "Structured workflow data. Include only values known from the user or previous workflow results. Omit missing required fields instead of inventing placeholders.",
         additionalProperties: true,
       },
     },
@@ -55,7 +57,11 @@ export const n8nTriggerTool = {
     if (!validation.valid) {
       const missingFields = validation.errors
         .filter((message) => message.endsWith(" is required"))
-        .map((message) => message.replace(/^arguments\./, "").replace(/ is required$/, ""));
+        .map((message) =>
+          message
+            .replace(/^arguments\./, "")
+            .replace(/ is required$/, ""),
+        );
 
       if (missingFields.length > 0) {
         return {
@@ -63,7 +69,8 @@ export const n8nTriggerTool = {
           workflowId: workflow._id.toString(),
           workflowName: workflow.name,
           missingFields,
-          message: "Additional workflow input is required before this workflow can run.",
+          message:
+            "Additional workflow input is required before this workflow can run.",
         };
       }
 

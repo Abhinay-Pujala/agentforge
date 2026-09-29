@@ -19,19 +19,22 @@ export function buildPrompt(worker, input, context = {}) {
   }
 
   if (worker.instructions) {
-    systemParts.push(`Instructions:\n${worker.instructions}`);
+    systemParts.push(`Instructions:\\n${worker.instructions}`);
   }
 
-  if (Array.isArray(context.workflowCatalog) && context.workflowCatalog.length > 0) {
+  if (
+    Array.isArray(context.workflowCatalog) &&
+    context.workflowCatalog.length > 0
+  ) {
     systemParts.push(
       `Workflow execution rules:
-- When the user's request asks you to perform an action that matches an available workflow, use the n8n.trigger tool instead of only replying that you can do it.
+- When the user's request matches an available workflow, you MUST call n8n.trigger. Do not replace the workflow call with a conversational response.
 - Choose the matching workflow from the available workflow catalog and pass its exact workflow ID.
-- Include only values that are explicitly provided by the user or safely resolved from previous tool results.
+- Include only values explicitly provided by the user or safely resolved from previous tool results.
 - Never invent, guess, or use placeholder values for required workflow fields.
 - Never use words such as "recipient", "name", "email", "unknown", "user", "person", or similar placeholders as actual field values.
-- If a required workflow field is missing, pass the field as absent rather than fabricating a value.
-- The runtime will detect missing required fields and pause the execution with WAITING_FOR_INPUT.
+- If a required workflow field is missing, omit that field from data. Do not ask for it in text before the tool call.
+- The workflow validator will detect missing required fields and return INPUT_REQUIRED, causing the execution to enter WAITING_FOR_INPUT.
 - If a workflow requires a value that can be resolved by another available workflow, call the resolving workflow first.
 - After a resolving workflow returns the required value, use that value in the next workflow call.
 Available workflows:
@@ -40,7 +43,7 @@ ${JSON.stringify(context.workflowCatalog, null, 2)}`,
   }
 
   if (Object.keys(context).length > 0) {
-    systemParts.push(`Runtime context:\n${JSON.stringify(context, null, 2)}`);
+    systemParts.push(`Runtime context:\\n${JSON.stringify(context, null, 2)}`);
   }
 
   return [

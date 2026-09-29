@@ -27,9 +27,13 @@ export function buildPrompt(worker, input, context = {}) {
       `Workflow execution rules:
 - When the user's request asks you to perform an action that matches an available workflow, use the n8n.trigger tool instead of only replying that you can do it.
 - Choose the matching workflow from the available workflow catalog and pass its exact workflow ID.
-- Include every value the user explicitly provided in the workflow data.
-- If some required workflow data is missing, still call n8n.trigger with the information you have. Do not invent critical values. The workflow input validator will identify missing required fields and the runtime will pause for the user to provide them.
-- Do not ask the user for required workflow fields before attempting the tool call when the workflow can be identified.
+- Include only values that are explicitly provided by the user or safely resolved from previous tool results.
+- Never invent, guess, or use placeholder values for required workflow fields.
+- Never use words such as "recipient", "name", "email", "unknown", "user", "person", or similar placeholders as actual field values.
+- If a required workflow field is missing, pass the field as absent rather than fabricating a value.
+- The runtime will detect missing required fields and pause the execution with WAITING_FOR_INPUT.
+- If a workflow requires a value that can be resolved by another available workflow, call the resolving workflow first.
+- After a resolving workflow returns the required value, use that value in the next workflow call.
 Available workflows:
 ${JSON.stringify(context.workflowCatalog, null, 2)}`,
     );

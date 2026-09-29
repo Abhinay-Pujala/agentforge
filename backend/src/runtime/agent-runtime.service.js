@@ -135,6 +135,7 @@ class AgentRuntime {
 
     let toolRounds = 0;
     let workflowToolRetryUsed = false;
+    let workflowCompletionRetryUsed = false;
     const workflowIntentDetected = shouldAttemptWorkflow(
       input,
       context.workflowCatalog,
@@ -177,13 +178,19 @@ class AgentRuntime {
           };
         }
 
-        if (successfulWorkflowExecution) {
-          return {
-            success: true,
-            output: normalizedResponse.output,
-            metadata: normalizedResponse.metadata,
-            toolCalls: toolCallRecords,
-          };
+        if (
+          successfulWorkflowExecution &&
+          !workflowCompletionRetryUsed
+        ) {
+          workflowCompletionRetryUsed = true;
+
+          messages.push({
+            role: "system",
+            content:
+              "A workflow has just completed successfully. Before finishing, verify whether the ORIGINAL user request is fully satisfied. If another registered workflow is required to complete the request, call n8n.trigger for that next step now. Use outputs from completed workflows as inputs for later workflows. If the request is already fully satisfied, respond with a concise final confirmation and do not call a workflow again.",
+          });
+
+          continue;
         }
 
         if (

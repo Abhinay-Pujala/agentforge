@@ -70,6 +70,17 @@ function getRequiredWorkflowFields(workflow) {
     : [];
 }
 
+function getWorkflowExecutionKey(toolCall) {
+  if (toolCall?.tool !== "n8n.trigger") {
+    return null;
+  }
+
+  return JSON.stringify({
+    workflowId: toolCall.arguments?.workflowId ?? null,
+    data: toolCall.arguments?.data ?? {},
+  });
+}
+
 function createToolCallRecord(toolCall) {
   return {
     id: toolCall.id,
@@ -143,6 +154,7 @@ class AgentRuntime {
     );
     let successfulWorkflowExecution = false;
     const toolCallRecords = [];
+    const successfulWorkflowKeys = new Set();
     let inputRequired = null;
 
     while (true) {
@@ -277,13 +289,29 @@ class AgentRuntime {
         const startedAt = Date.now();
 
         try {
-          const toolResult = await this.toolExecutionService.execute({
-            toolName: toolCall.tool,
-            arguments: toolCall.arguments,
-            timeoutMs: executionPolicy?.toolTimeoutMs ?? 10_000,
-            permissions: worker.permissions || [],
-            context,
-          });
+          const workflowExecutionKey = getWorkflowExecutionKey(toolCall);
+
+          // Never repeat an identical external workflow side effect within
+          // one agent execution. This protects email/send/create actions from
+          // an LLM that keeps requesting the same successful tool call.
+          const duplicateSuccessfulWorkflow =
+            workflowExecutionKey &&
+            successfulWorkflowKeys.has(workflowExecutionKey);
+
+          const toolResult = duplicateSuccessfulWorkflow
+            ? {
+                success: true,
+                status: "ALREADY_COMPLETED",
+                message:
+                  "This exact workflow action was already completed during this execution. Do not execute it again.",
+              }
+            : await this.toolExecutionService.execute({
+                toolName: toolCall.tool,
+                arguments: toolCall.arguments,
+                timeoutMs: executionPolicy?.toolTimeoutMs ?? 10_000,
+                permissions: worker.permissions || [],
+                context,
+              });
 
           record.result = toolResult;
           record.status = "COMPLETED";
@@ -298,6 +326,11 @@ class AgentRuntime {
             toolResult?.status !== "INPUT_REQUIRED"
           ) {
             successfulWorkflowExecution = true;
+
+            const workflowExecutionKey = getWorkflowExecutionKey(toolCall);
+            if (workflowExecutionKey) {
+              successfulWorkflowKeys.add(workflowExecutionKey);
+            }
           }
 
           if (toolResult?.status === "INPUT_REQUIRED") {

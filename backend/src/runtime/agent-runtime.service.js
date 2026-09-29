@@ -124,7 +124,7 @@ class AgentRuntime {
         executionPolicy,
         tools: availableTools,
         toolChoice:
-          hasWorkflowTools && toolRounds === 0
+          hasWorkflowTools && (toolRounds === 0 || inputRequired)
             ? {
                 type: "function",
                 function: { name: "n8n.trigger" },
@@ -262,6 +262,10 @@ class AgentRuntime {
 
           record.result = toolResult;
           record.status = "COMPLETED";
+
+          if (toolResult?.status !== "INPUT_REQUIRED") {
+            inputRequired = null;
+          }
 
           if (
             toolCall.tool === "n8n.trigger" &&

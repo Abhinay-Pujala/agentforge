@@ -93,13 +93,23 @@ export default function WorkerDetails() {
 
       // Recover the waiting state from persisted execution status even if
       // the run API response did not expose inputRequired metadata.
-      const waiting = nextExecutions.find((execution) => execution.status === "WAITING_FOR_INPUT");
+      const waiting = nextExecutions.find(
+        (execution) => execution.status === "WAITING_FOR_INPUT",
+      );
+
       if (waiting) {
-        setWaitingExecution((current) => current || {
+        setWaitingExecution((current) => ({
           executionId: waiting._id,
-          missingFields: [],
-          workflowName: null,
-        });
+          missingFields: current?.executionId === waiting._id
+            ? current.missingFields || []
+            : [],
+          workflowName: current?.executionId === waiting._id
+            ? current.workflowName || null
+            : null,
+        }));
+      } else {
+        // Clear stale HITL state after a successful resume.
+        setWaitingExecution(null);
       }
     } catch (err) {
       console.error("Failed to fetch execution history:", err);
@@ -173,6 +183,9 @@ export default function WorkerDetails() {
         result,
         waitingExecution.executionId,
       );
+
+      // A successful resume returns no inputRequired metadata.
+      // Clear the HITL prompt so the UI reflects the completed execution.
       setWaitingExecution(waiting);
       setResumeInput("");
 

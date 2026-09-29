@@ -43,8 +43,9 @@ function inferWorkflowForInput(workflowCatalog, input) {
 }
 
 const WORKFLOW_ACTION_WORDS = new Set([
-  "send", "create", "add", "update", "edit", "delete", "remove",
-  "find", "lookup", "search", "fetch", "get", "retrieve", "save",
+  "send", "email", "mail", "message", "create", "add", "update", "edit",
+  "delete", "remove", "find", "lookup", "search", "fetch", "get",
+  "retrieve", "save",
   "store", "insert", "append", "notify", "schedule", "trigger",
   "run", "execute", "generate", "post", "publish", "upload",
   "download", "sync", "export", "import", "move", "copy", "archive",

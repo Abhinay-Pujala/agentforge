@@ -504,6 +504,96 @@ describe("AgentRuntime tool capabilities", () => {
 });
 
 
+  it("accepts a model-polished email body when the user explicitly provided the message", async () => {
+    const n8nTool = {
+      name: "n8n.trigger",
+      description: "Trigger a registered n8n workflow.",
+      schema: {
+        type: "object",
+        properties: {
+          workflowId: { type: "string" },
+          data: { type: "object", additionalProperties: true },
+        },
+        required: ["workflowId", "data"],
+        additionalProperties: false,
+      },
+      execute: vi.fn().mockResolvedValue({
+        success: true,
+        status: "SENT",
+        message: "Email sent successfully",
+      }),
+    };
+
+    const toolRegistry = new ToolRegistry();
+    toolRegistry.register(n8nTool);
+
+    const modelProvider = {
+      generate: vi
+        .fn()
+        .mockResolvedValueOnce({
+          output: null,
+          toolCalls: [
+            {
+              id: "n8n-call-1",
+              tool: "n8n.trigger",
+              arguments: {
+                workflowId: "workflow-email",
+                data: {
+                  to: "abhinay200711@gmail.com",
+                  subject: "Project Submission Update",
+                  message:
+                    "Hi, I’ll submit the project tomorrow. Best regards, Abhinay.",
+                },
+              },
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          output: "Email sent successfully.",
+          toolCalls: [],
+          metadata: {},
+        }),
+    };
+
+    const runtime = new AgentRuntime(modelProvider, toolRegistry);
+
+    const result = await runtime.execute({
+      worker: {
+        model: "test-model",
+        instructions: "Use the email workflow when appropriate.",
+        enabledTools: ["n8n.trigger"],
+        configuration: {},
+      },
+      input:
+        "Send an email to abhinay200711@gmail.com saying I'll submit the project tomorrow.",
+      context: {
+        workflowCatalog: [
+          {
+            id: "workflow-email",
+            name: "Email Automation",
+            description: "Send an email.",
+            category: "automation",
+            inputSchema: {
+              type: "object",
+              properties: {
+                to: { type: "string" },
+                subject: { type: "string" },
+                message: { type: "string" },
+              },
+              required: ["to", "subject", "message"],
+              additionalProperties: false,
+            },
+          },
+        ],
+      },
+    });
+
+    expect(result.output).toBe("Email sent successfully.");
+    expect(result.metadata.inputRequired).toBeUndefined();
+    expect(n8nTool.execute).toHaveBeenCalledTimes(1);
+    expect(modelProvider.generate).toHaveBeenCalledTimes(2);
+  });
+
   it("stops immediately when an email message must be explicitly provided by the user", async () => {
     const n8nTool = {
       name: "n8n.trigger",

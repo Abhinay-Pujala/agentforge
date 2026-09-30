@@ -32,11 +32,12 @@ router.delete("/:id", protect, validate(workerIdSchema), deleteWorker);
 
 router.post("/:id/run", protect, validate(workerExecutionSchema), runWorker);
 
-export default router;
-
 router.post(
   "/:id/executions/:executionId/resume",
   protect,
   validate(executionResumeSchema),
   resumeWorkerExecution,
 );
+
+
+export default router;

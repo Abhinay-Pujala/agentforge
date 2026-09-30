@@ -7,12 +7,14 @@ import {
   getWorkflow,
   getWorkflowList,
   updateWorkflowController,
+  testWorkflowController,
 } from "../controllers/workflow.controller.js";
 import {
   createWorkflowSchema,
   getWorkflowsSchema,
   updateWorkflowSchema,
   workflowIdSchema,
+  testWorkflowSchema,
 } from "../validators/workflow.validator.js";
 
 const router = express.Router();
@@ -21,6 +23,7 @@ router.post("/", protect, validate(createWorkflowSchema), createWorkflowControll
 router.get("/", protect, validate(getWorkflowsSchema), getWorkflowList);
 router.get("/:id", protect, validate(workflowIdSchema), getWorkflow);
 router.put("/:id", protect, validate(updateWorkflowSchema), updateWorkflowController);
+router.post("/:id/test", protect, validate(testWorkflowSchema), testWorkflowController);
 router.delete("/:id", protect, validate(workflowIdSchema), deleteWorkflowController);
 
 export default router;

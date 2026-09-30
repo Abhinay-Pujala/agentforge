@@ -6,20 +6,31 @@ const executionSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      index: true,
     },
     worker: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Worker",
       required: true,
+      index: true,
     },
     status: {
       type: String,
-      enum: ["QUEUED", "RUNNING", "WAITING_FOR_INPUT", "COMPLETED", "FAILED", "TIMEOUT"],
+      enum: [
+        "QUEUED",
+        "RUNNING",
+        "WAITING_FOR_INPUT",
+        "COMPLETED",
+        "FAILED",
+        "TIMEOUT",
+      ],
       default: "QUEUED",
+      index: true,
     },
     input: {
       type: String,
       required: true,
+      trim: true,
     },
     output: {
       type: String,
@@ -28,6 +39,18 @@ const executionSchema = new mongoose.Schema(
     model: {
       type: String,
       default: null,
+    },
+    workflowId: {
+      type: String,
+      default: null,
+    },
+    workflowData: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
+    missingFields: {
+      type: [String],
+      default: [],
     },
     startedAt: {
       type: Date,
@@ -89,7 +112,7 @@ const executionSchema = new mongoose.Schema(
         },
         status: {
           type: String,
-          enum: ["COMPLETED", "FAILED", "TIMEOUT"],
+          enum: ["COMPLETED", "FAILED", "TIMEOUT", "WAITING_FOR_INPUT"],
           required: true,
         },
         error: {
@@ -117,6 +140,9 @@ const executionSchema = new mongoose.Schema(
     timestamps: true,
   },
 );
+
+executionSchema.index({ user: 1, createdAt: -1 });
+executionSchema.index({ user: 1, worker: 1, createdAt: -1 });
 
 const Execution = mongoose.model("Execution", executionSchema);
 

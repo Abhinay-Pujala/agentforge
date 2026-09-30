@@ -502,3 +502,425 @@ describe("AgentRuntime tool capabilities", () => {
     ).rejects.toThrow("Calculator failed");
   });
 });
+
+
+  it("does not expose n8n to ordinary conversation", async () => {
+    const n8nTool = {
+      name: "n8n.trigger",
+      description: "Trigger a registered workflow.",
+      schema: {
+        type: "object",
+        properties: {
+          workflowId: { type: "string" },
+          data: { type: "object" },
+        },
+        required: ["workflowId", "data"],
+      },
+      execute: vi.fn(),
+    };
+
+    const registry = new ToolRegistry();
+    registry.register(n8nTool);
+
+    const modelProvider = {
+      generate: vi.fn().mockResolvedValue({
+        output: "Hi! I can help you.",
+        toolCalls: [],
+        metadata: {},
+      }),
+    };
+
+    const runtime = new AgentRuntime(modelProvider, registry);
+
+    const result = await runtime.execute({
+      worker: {
+        model: "test-model",
+        instructions: "Be helpful.",
+        enabledTools: ["n8n.trigger"],
+        permissions: ["n8n.trigger"],
+        workflowIds: ["workflow-email"],
+        configuration: {},
+      },
+      input: "Hi, what can you do?",
+      context: {
+        workflowCatalog: [
+          {
+            id: "workflow-email",
+            name: "Email Automation",
+            description: "Send an email.",
+            category: "email",
+            inputSchema: {
+              type: "object",
+              properties: {},
+              required: [],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(result.output).toBe("Hi! I can help you.");
+    expect(n8nTool.execute).not.toHaveBeenCalled();
+    expect(n8nTool.execute).not.toHaveBeenCalled();
+  });
+
+  it("executes the single registered workflow once and accepts a polished email body", async () => {
+    const n8nTool = {
+      name: "n8n.trigger",
+      description: "Trigger a registered n8n workflow.",
+      schema: {
+        type: "object",
+        properties: {
+          workflowId: { type: "string" },
+          data: { type: "object", additionalProperties: true },
+        },
+        required: ["workflowId", "data"],
+        additionalProperties: false,
+      },
+      execute: vi.fn().mockResolvedValue({
+        success: true,
+        status: "SENT",
+        message: "Email sent successfully",
+      }),
+    };
+
+    const toolRegistry = new ToolRegistry();
+    toolRegistry.register(n8nTool);
+
+    const modelProvider = {
+      generate: vi
+        .fn()
+        .mockResolvedValueOnce({
+          output: null,
+          toolCalls: [
+            {
+              id: "n8n-call-1",
+              tool: "n8n.trigger",
+              arguments: {
+                workflowId: "workflow-email",
+                data: {
+                  to: "abhinay200711@gmail.com",
+                  subject: "Project Submission Update",
+                  message:
+                    "Hi, I’ll submit the project tomorrow. Best regards, Abhinay.",
+                },
+              },
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          output: "Email sent successfully.",
+          toolCalls: [],
+          metadata: {},
+        }),
+    };
+
+    const runtime = new AgentRuntime(modelProvider, toolRegistry);
+
+    const result = await runtime.execute({
+      worker: {
+        model: "test-model",
+        instructions: "Use the email workflow when appropriate.",
+        enabledTools: ["n8n.trigger"],
+        configuration: {},
+      },
+      input:
+        "Send an email to abhinay200711@gmail.com saying I'll submit the project tomorrow.",
+      context: {
+        workflowCatalog: [
+          {
+            id: "workflow-email",
+            name: "Email Automation",
+            description: "Send an email.",
+            category: "automation",
+            inputSchema: {
+              type: "object",
+              properties: {
+                to: { type: "string" },
+                subject: { type: "string" },
+                message: { type: "string" },
+              },
+              required: ["to", "subject", "message"],
+              additionalProperties: false,
+            },
+          },
+        ],
+      },
+    });
+
+    expect(result.output).toBe("Email sent successfully.");
+    expect(result.metadata.inputRequired).toBeUndefined();
+    expect(result.toolCalls).toHaveLength(1);
+    expect(n8nTool.execute).toHaveBeenCalledTimes(1);
+    expect(modelProvider.generate).toHaveBeenCalledTimes(2);
+  });
+
+  it("merges pending workflow state and resumed input before execution", async () => {
+    const n8nTool = {
+      name: "n8n.trigger",
+      description: "Trigger a registered n8n workflow.",
+      schema: {
+        type: "object",
+        properties: {
+          workflowId: { type: "string" },
+          data: { type: "object", additionalProperties: true },
+        },
+        required: ["workflowId", "data"],
+        additionalProperties: false,
+      },
+      execute: vi.fn().mockResolvedValue({
+        success: true,
+        status: "SENT",
+        message: "Workflow completed successfully",
+      }),
+    };
+
+    const registry = new ToolRegistry();
+    registry.register(n8nTool);
+
+    const modelProvider = {
+      generate: vi
+        .fn()
+        .mockResolvedValueOnce({
+          output: null,
+          toolCalls: [
+            {
+              id: "resume-call-1",
+              tool: "n8n.trigger",
+              arguments: {
+                workflowId: "workflow-email",
+                data: {},
+              },
+            },
+          ],
+          metadata: {},
+        })
+        .mockResolvedValueOnce({
+          output: "Workflow completed successfully.",
+          toolCalls: [],
+          metadata: {},
+        }),
+    };
+
+    const runtime = new AgentRuntime(modelProvider, registry);
+
+    const result = await runtime.execute({
+      worker: {
+        model: "test-model",
+        instructions: "Use the registered workflow.",
+        enabledTools: ["n8n.trigger"],
+        permissions: ["n8n.trigger"],
+        workflowIds: ["workflow-email"],
+        configuration: {},
+      },
+      input: "Original request: Send an email to user@example.com",
+      context: {
+        workflowCatalog: [
+          {
+            id: "workflow-email",
+            name: "Email Automation",
+            description: "Send an email.",
+            category: "automation",
+            inputSchema: {
+              type: "object",
+              properties: {
+                to: { type: "string" },
+                message: { type: "string" },
+              },
+              required: ["to", "message"],
+            },
+          },
+        ],
+        pendingWorkflowData: {
+          to: "user@example.com",
+        },
+        explicitWorkflowInput: {
+          message: "Hello from the user",
+        },
+        resumedFromExecutionId: "execution-123",
+        originalUserInput:
+          "Send an email to user@example.com\nHello from the user",
+      },
+    });
+
+    expect(result.success).toBe(true);
+    expect(n8nTool.execute).toHaveBeenCalledWith(
+      {
+        workflowId: "workflow-email",
+        data: {
+          to: "user@example.com",
+          message: "Hello from the user",
+        },
+      },
+      expect.any(Object),
+    );
+  });
+
+  it("pauses immediately when the single workflow has missing required input", async () => {
+    const n8nTool = {
+      name: "n8n.trigger",
+      description: "Trigger a registered n8n workflow.",
+      schema: {
+        type: "object",
+        properties: {
+          workflowId: { type: "string" },
+          data: { type: "object", additionalProperties: true },
+        },
+        required: ["workflowId", "data"],
+        additionalProperties: false,
+      },
+      execute: vi.fn().mockResolvedValue({
+        status: "INPUT_REQUIRED",
+        workflowId: "workflow-email",
+        workflowName: "Email Automation",
+        missingFields: ["message"],
+        validationErrors: ["arguments.message is required"],
+        message: "Additional workflow input is required before this workflow can run.",
+      }),
+    };
+
+    const toolRegistry = new ToolRegistry();
+    toolRegistry.register(n8nTool);
+
+    const modelProvider = {
+      generate: vi.fn().mockResolvedValue({
+        output: null,
+        toolCalls: [
+          {
+            id: "n8n-call-1",
+            tool: "n8n.trigger",
+            arguments: {
+              workflowId: "workflow-email",
+              data: {
+                to: "abhinay200711@gmail.com",
+                subject: "Project Update",
+              },
+            },
+          },
+        ],
+      }),
+    };
+
+    const runtime = new AgentRuntime(modelProvider, toolRegistry);
+
+    const result = await runtime.execute({
+      worker: {
+        model: "test-model",
+        instructions: "Use the email workflow when appropriate.",
+        enabledTools: ["n8n.trigger"],
+        configuration: {},
+      },
+      input: "Send an email to abhinay200711@gmail.com",
+      context: {
+        workflowCatalog: [
+          {
+            id: "workflow-email",
+            name: "Email Automation",
+            description: "Send an email.",
+            category: "automation",
+            inputSchema: {
+              type: "object",
+              properties: {
+                to: { type: "string" },
+                subject: { type: "string" },
+                message: { type: "string" },
+              },
+              required: ["to", "subject", "message"],
+              additionalProperties: false,
+            },
+          },
+        ],
+      },
+    });
+
+    expect(result.metadata.inputRequired).toMatchObject({
+      workflowId: "workflow-email",
+      missingFields: ["message"],
+      validationErrors: ["arguments.message is required"],
+    });
+    expect(result.toolCalls).toHaveLength(1);
+    expect(modelProvider.generate).toHaveBeenCalledTimes(1);
+    expect(n8nTool.execute).toHaveBeenCalledTimes(1);
+  });
+  it("does not retry indefinitely when resumed input remains unresolved", async () => {
+    const n8nTool = {
+      name: "n8n.trigger",
+      description: "Trigger a registered workflow.",
+      schema: {
+        type: "object",
+        properties: {
+          workflowId: { type: "string" },
+          data: { type: "object", additionalProperties: true },
+        },
+        required: ["workflowId", "data"],
+      },
+      execute: vi.fn().mockResolvedValue({
+        status: "INPUT_REQUIRED",
+        workflowId: "workflow-email",
+        workflowName: "Email Automation",
+        missingFields: ["message"],
+        validationErrors: ["arguments.message is required"],
+      }),
+    };
+
+    const registry = new ToolRegistry();
+    registry.register(n8nTool);
+
+    const modelProvider = {
+      generate: vi.fn().mockResolvedValue({
+        output: null,
+        toolCalls: [{
+          id: "resume-call-1",
+          tool: "n8n.trigger",
+          arguments: {
+            workflowId: "workflow-email",
+            data: { to: "user@example.com" },
+          },
+        }],
+      }),
+    };
+
+    const runtime = new AgentRuntime(modelProvider, registry);
+
+    const result = await runtime.execute({
+      worker: {
+        model: "test-model",
+        instructions: "Send email using the registered workflow.",
+        enabledTools: ["n8n.trigger"],
+        permissions: ["n8n.trigger"],
+        workflowIds: ["workflow-email"],
+        configuration: {},
+      },
+      input: `Original request:
+Send an email to user@example.com
+
+User provided additional information:
+Birthday wishes`,
+      context: {
+        workflowCatalog: [{
+          id: "workflow-email",
+          name: "Email Automation",
+          inputSchema: {
+            type: "object",
+            properties: {
+              to: { type: "string" },
+              message: { type: "string" },
+            },
+            required: ["to", "message"],
+          },
+        }],
+        explicitWorkflowInput: { message: "Birthday wishes" },
+        pendingWorkflowData: { to: "user@example.com" },
+        resumedFromExecutionId: "execution-123",
+        originalUserInput: `Send an email to user@example.com
+Birthday wishes`,
+      },
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.metadata.inputRequired).toMatchObject({
+      missingFields: ["message"],
+    });
+    expect(n8nTool.execute).toHaveBeenCalledTimes(1);
+    expect(modelProvider.generate).toHaveBeenCalledTimes(1);
+  });

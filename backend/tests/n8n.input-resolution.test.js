@@ -17,9 +17,15 @@ describe("n8n workflow input resolution", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
+    triggerN8nWorkflowMock.mockResolvedValue({
+      success: true,
+      result: { message: "Workflow completed" },
+    });
+
     assertWorkflowAccessMock.mockResolvedValue({
       _id: "workflow-123",
       name: "Gmail Automation",
+      category: "email",
       status: "enabled",
       webhook: {
         provider: "n8n",
@@ -57,6 +63,7 @@ describe("n8n workflow input resolution", () => {
       workflowId: "workflow-123",
       workflowName: "Gmail Automation",
       missingFields: ["to"],
+      validationErrors: ["arguments.to is required"],
       message: "Additional workflow input is required before this workflow can run.",
     });
 
@@ -85,4 +92,103 @@ describe("n8n workflow input resolution", () => {
       code: "N8N_WORKFLOW_INPUT_INVALID",
     });
   });
+
+  it("treats placeholder values as missing input", async () => {
+    const result = await n8nTriggerTool.execute(
+      {
+        workflowId: "workflow-123",
+        data: {
+          to: "user@example.com",
+          subject: "Meeting",
+          message: "Message Required",
+        },
+      },
+      {
+        userId: "user-123",
+        workerId: "worker-123",
+        executionId: "execution-456",
+        worker: { workflowIds: ["workflow-123"] },
+      },
+    );
+
+    expect(result.status).toBe("INPUT_REQUIRED");
+    expect(result.missingFields).toContain("message");
+    expect(triggerN8nWorkflowMock).not.toHaveBeenCalled();
+  });
+
+
+  it("requires user-provided email content before execution", async () => {
+    const result = await n8nTriggerTool.execute(
+      {
+        workflowId: "workflow-123",
+        data: {
+          to: "user@example.com",
+          message: "No message provided.",
+        },
+      },
+      {
+        userId: "user-123",
+        workerId: "worker-123",
+        executionId: "execution-456",
+        originalUserInput: "Send an email to user@example.com",
+        worker: { workflowIds: ["workflow-123"] },
+      },
+    );
+
+    expect(result.status).toBe("INPUT_REQUIRED");
+    expect(result.missingFields).toEqual(["message"]);
+    expect(triggerN8nWorkflowMock).not.toHaveBeenCalled();
+  });
+
+  it("derives a subject from supplied email content", async () => {
+    const result = await n8nTriggerTool.execute(
+      {
+        workflowId: "workflow-123",
+        data: {
+          to: "user@example.com",
+          message: "I will submit the project tomorrow.",
+        },
+      },
+      {
+        userId: "user-123",
+        workerId: "worker-123",
+        executionId: "execution-456",
+        worker: { workflowIds: ["workflow-123"] },
+      },
+    );
+
+    expect(result.success).toBe(true);
+    expect(triggerN8nWorkflowMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          to: "user@example.com",
+          message: "I will submit the project tomorrow.",
+          subject: expect.any(String),
+        }),
+      }),
+    );
+  });
+
+  it("does not execute when the email body is genuinely missing", async () => {
+    const result = await n8nTriggerTool.execute(
+      {
+        workflowId: "workflow-123",
+        data: {
+          to: "user@example.com",
+        },
+      },
+      {
+        userId: "user-123",
+        workerId: "worker-123",
+        executionId: "execution-456",
+        worker: { workflowIds: ["workflow-123"] },
+      },
+    );
+
+    expect(result.status).toBe("INPUT_REQUIRED");
+    expect(result.missingFields).toEqual(["message"]);
+    expect(triggerN8nWorkflowMock).not.toHaveBeenCalled();
+  });
+
+
 });

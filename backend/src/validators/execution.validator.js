@@ -3,6 +3,7 @@ import { z } from "zod";
 const executionStatuses = [
   "QUEUED",
   "RUNNING",
+  "WAITING_FOR_INPUT",
   "COMPLETED",
   "FAILED",
   "TIMEOUT",

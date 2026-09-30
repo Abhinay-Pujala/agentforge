@@ -74,8 +74,38 @@ export default function Executions() {
   }, []);
 
   useEffect(() => {
-    fetchExecutions();
-  }, []);
+    let active = true;
+
+    async function loadInitialExecutions() {
+      try {
+        setLoading(true);
+        setError("");
+
+        const result = await getExecutions({ page: 1, limit: pagination.limit });
+
+        if (active) {
+          setExecutions(result.executions);
+          setPagination(result.pagination);
+        }
+      } catch (error) {
+        if (active) {
+          setError(
+            error.response?.data?.message ||
+              error.message ||
+              "Failed to fetch executions.",
+          );
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    loadInitialExecutions();
+
+    return () => {
+      active = false;
+    };
+  }, [pagination.limit]);
 
   return (
     <DashboardLayout title="Executions">
@@ -110,6 +140,7 @@ export default function Executions() {
               <option value="">All statuses</option>
               <option value="QUEUED">Queued</option>
               <option value="RUNNING">Running</option>
+              <option value="WAITING_FOR_INPUT">Waiting for input</option>
               <option value="COMPLETED">Completed</option>
               <option value="FAILED">Failed</option>
               <option value="TIMEOUT">Timeout</option>
@@ -272,7 +303,9 @@ export default function Executions() {
                                     : execution.status === "FAILED" ||
                                         execution.status === "TIMEOUT"
                                       ? "bg-red-500/10 text-red-400"
-                                      : "bg-yellow-500/10 text-yellow-400"
+                                      : execution.status === "WAITING_FOR_INPUT"
+                                        ? "bg-amber-500/10 text-amber-400"
+                                        : "bg-yellow-500/10 text-yellow-400"
                                 }`}
                               >
                                 {execution.status}

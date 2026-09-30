@@ -4,7 +4,6 @@ import {
   History,
   Workflow,
   Wrench,
-  Settings,
   LogOut,
 } from "lucide-react";
 import { NavLink } from "react-router-dom";
@@ -39,11 +38,6 @@ export default function Sidebar() {
       name: "Tools",
       path: "/dashboard/tools",
       icon: Wrench,
-    },
-    {
-      name: "Settings",
-      path: "/settings",
-      icon: Settings,
     },
   ];
 

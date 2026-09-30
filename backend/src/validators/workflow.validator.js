@@ -50,3 +50,14 @@ export const getWorkflowsSchema = z.object({
     category: z.string().trim().optional(),
   }),
 });
+
+
+export const testWorkflowSchema = z.object({
+  body: z.object({
+    data: z.record(z.string(), z.unknown()).default({}),
+  }),
+  params: z.object({
+    id: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid workflow ID"),
+  }),
+  query: z.object({}),
+});

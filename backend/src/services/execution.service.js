@@ -25,6 +25,22 @@ export async function updateExecutionStatus(executionId, updates) {
   return execution;
 }
 
+function endOfDayIfDateOnly(value) {
+  if (!value) return value;
+
+  const date = new Date(value);
+  if (
+    date.getHours() === 0 &&
+    date.getMinutes() === 0 &&
+    date.getSeconds() === 0 &&
+    date.getMilliseconds() === 0
+  ) {
+    date.setHours(23, 59, 59, 999);
+  }
+
+  return date;
+}
+
 export async function getExecutions({
   userId,
   workerId,
@@ -54,7 +70,7 @@ export async function getExecutions({
     }
 
     if (to) {
-      query.createdAt.$lte = to;
+      query.createdAt.$lte = endOfDayIfDateOnly(to);
     }
   }
 

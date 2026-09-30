@@ -12,6 +12,113 @@ import {
   getExecutionById,
 } from "../services/execution.service.js";
 
+const FREEFORM_RESUME_FIELDS = [
+  "message",
+  "text",
+  "body",
+  "content",
+  "description",
+  "details",
+  "notes",
+  "instructions",
+  "prompt",
+  "query",
+  "request",
+  "comment",
+  "reason",
+];
+
+const RECIPIENT_RESUME_FIELDS = [
+  "to",
+  "recipient",
+  "email",
+  "recipientEmail",
+  "destination",
+];
+
+function normalizeMissingFields(value) {
+  if (Array.isArray(value)) {
+    return value.map((field) => String(field).trim()).filter(Boolean);
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    return [value.trim()];
+  }
+
+  if (value && typeof value === "object") {
+    return Object.entries(value)
+      .filter(([, required]) => Boolean(required))
+      .map(([field]) => field);
+  }
+
+  return [];
+}
+
+function selectResumeField(missingFields, input) {
+  if (!Array.isArray(missingFields) || missingFields.length === 0) {
+    return null;
+  }
+
+  const normalizedFields = missingFields.map((field) => ({
+    original: field,
+    normalized: String(field).trim().toLowerCase(),
+  }));
+
+  const looksLikeEmailAddress =
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(input || "").trim());
+
+  if (looksLikeEmailAddress) {
+    const recipientField = normalizedFields.find(({ normalized }) =>
+      RECIPIENT_RESUME_FIELDS.includes(normalized),
+    );
+
+    if (recipientField) {
+      return recipientField.original;
+    }
+  }
+
+  const freeformField = normalizedFields.find(({ normalized }) =>
+    FREEFORM_RESUME_FIELDS.includes(normalized),
+  );
+
+  if (freeformField) {
+    return freeformField.original;
+  }
+
+  return missingFields[0];
+}
+
+function getWorkflowState(result) {
+  const workflowCall = [...(result?.toolCalls || [])]
+    .reverse()
+    .find((call) => call?.tool === "n8n.trigger");
+
+  const workflowResult = workflowCall?.result;
+
+  return {
+    workflowId:
+      workflowCall?.arguments?.workflowId ||
+      workflowResult?.workflowId ||
+      null,
+    workflowData:
+      workflowCall?.arguments?.data &&
+      typeof workflowCall.arguments.data === "object"
+        ? workflowCall.arguments.data
+        : {},
+    missingFields: normalizeMissingFields(workflowResult?.missingFields),
+  };
+}
+
+function addExecutionIdToMetadata(result, executionId) {
+  return {
+    ...(result || {}),
+    metadata: {
+      ...(result?.metadata || {}),
+      executionId: executionId.toString(),
+    },
+  };
+}
+
 export async function createWorker(req, res, next) {
   try {
     const {
@@ -133,7 +240,7 @@ export async function updateWorker(req, res, next) {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not fouund. Please sync your account first.",
+        message: "User not found. Please sync your account first.",
         data: null,
       });
     }
@@ -250,6 +357,7 @@ export async function runWorker(req, res, next) {
     const executionContext = {
       ...context,
       executionId: execution._id.toString(),
+      originalUserInput: input.trim(),
     };
 
     startedAt = new Date();
@@ -268,6 +376,8 @@ export async function runWorker(req, res, next) {
       executionPolicy,
     });
 
+    result = addExecutionIdToMetadata(result, execution._id);
+
     const usage = result.metadata?.usage;
 
     if (result.metadata?.inputRequired) {
@@ -281,10 +391,14 @@ export async function runWorker(req, res, next) {
     const executionStatus = result.metadata?.inputRequired
       ? "WAITING_FOR_INPUT"
       : "COMPLETED";
+    const workflowState = getWorkflowState(result);
 
     await updateExecutionStatus(execution._id, {
       status: executionStatus,
       output: result.output,
+      workflowId: workflowState.workflowId,
+      workflowData: workflowState.workflowData,
+      missingFields: workflowState.missingFields,
       startedAt,
       completedAt,
       durationMs: completedAt.getTime() - startedAt.getTime(),
@@ -313,7 +427,7 @@ export async function runWorker(req, res, next) {
         status: err.statusCode === 504 ? "TIMEOUT" : "FAILED",
         output: result?.output || null,
         error: {
-          message: err.message,
+          message: err.userMessage || err.message,
           code: err.code || err.statusCode || null,
         },
         completedAt,
@@ -367,10 +481,56 @@ export async function resumeWorkerExecution(req, res, next) {
     }
 
     const executionPolicy = validateExecutionPolicy(worker);
+
+    // Recover the fields that caused the WAITING_FOR_INPUT state from the
+    // persisted tool result. If there is exactly one missing field, the
+    // user's follow-up is deterministically assigned to that field. This
+    // keeps resume generic for any workflow, not just email/message fields.
+    const lastInputRequiredCall = [...(execution.toolCalls || [])]
+      .reverse()
+      .find(
+        (toolCall) =>
+          toolCall?.result?.status === "INPUT_REQUIRED" &&
+          normalizeMissingFields(toolCall.result.missingFields).length > 0,
+      );
+
+    const missingFields = normalizeMissingFields(
+      lastInputRequiredCall?.result?.missingFields,
+    );
+    const previousWorkflowData =
+      execution.workflowData &&
+      typeof execution.workflowData === "object"
+        ? execution.workflowData
+        : lastInputRequiredCall?.arguments?.data &&
+            typeof lastInputRequiredCall.arguments.data === "object"
+          ? lastInputRequiredCall.arguments.data
+          : {};
+
+    // Preserve every value already collected before the pause. The user's
+    // reply is layered on top of that state and the runtime will merge it
+    // into the next workflow tool call. This is generic for any schema.
+    // Assign one natural-language follow-up to the most appropriate
+    // missing field. Prefer a recipient when the answer is an email address;
+    // otherwise prefer a free-form content field such as message/text/body.
+    // This prevents a resume such as "Birthday wishes" from being consumed
+    // by an unrelated missing field like subject.
+    const resumeField = selectResumeField(missingFields, input);
+
+    const explicitWorkflowInput = resumeField
+      ? { [resumeField]: input.trim() }
+      : {};
+
+
     const executionContext = {
       ...context,
       executionId: execution._id.toString(),
       resumedFromExecutionId: execution._id.toString(),
+      explicitWorkflowInput,
+      explicitUserInput: input.trim(),
+      resumeTargetField: resumeField,
+      originalUserInput: `${execution.input}\n${input.trim()}`,
+      pendingWorkflowData: previousWorkflowData,
+      missingWorkflowFields: missingFields,
     };
 
     startedAt = new Date();
@@ -395,6 +555,8 @@ ${input}`,
       executionPolicy,
     });
 
+    result = addExecutionIdToMetadata(result, execution._id);
+
     const usage = result.metadata?.usage;
     validateExecutionCost(usage?.cost);
 
@@ -402,10 +564,21 @@ ${input}`,
     const executionStatus = result.metadata?.inputRequired
       ? "WAITING_FOR_INPUT"
       : "COMPLETED";
+    const workflowState = getWorkflowState(result);
+
+    const previousToolCalls = Array.isArray(execution.toolCalls)
+      ? execution.toolCalls
+      : [];
+    const resumedToolCalls = Array.isArray(result.toolCalls)
+      ? result.toolCalls
+      : [];
 
     await updateExecutionStatus(execution._id, {
       status: executionStatus,
       output: result.output,
+      workflowId: workflowState.workflowId || execution.workflowId || null,
+      workflowData: workflowState.workflowData,
+      missingFields: workflowState.missingFields,
       completedAt,
       durationMs: completedAt.getTime() - startedAt.getTime(),
       usage: {
@@ -414,7 +587,7 @@ ${input}`,
         totalTokens: result.metadata?.usage?.total_tokens ?? null,
       },
       cost: result.metadata?.usage?.cost ?? null,
-      toolCalls: result.toolCalls || [],
+      toolCalls: [...previousToolCalls, ...resumedToolCalls],
     });
 
     return res.status(200).json({

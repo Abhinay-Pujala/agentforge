@@ -1,100 +1,77 @@
-import { Calculator, CheckCircle2, Wrench } from "lucide-react";
+import { Calculator, CheckCircle2, Workflow, Wrench } from "lucide-react";
 import DashboardLayout from "../layouts/DashboardLayout";
 
 const AVAILABLE_TOOLS = [
   {
     name: "calculator",
     label: "Calculator",
-    description: "Performs arithmetic calculations.",
+    description: "Performs safe basic arithmetic calculations.",
     permission: "calculator.execute",
-    status: "Available",
     icon: Calculator,
+  },
+  {
+    name: "n8n.trigger",
+    label: "Workflow trigger",
+    description: "Runs a registered n8n workflow when a Worker is explicitly asked to perform an actionable task.",
+    permission: "n8n.trigger",
+    icon: Workflow,
   },
 ];
 
 export default function Tools() {
   return (
     <DashboardLayout title="Tools">
-      <div className="max-w-6xl mx-auto space-y-8">
-        {/* Header */}
+      <div className="mx-auto max-w-6xl space-y-8">
         <div>
           <div className="flex items-center gap-3">
-            <div className="p-3 rounded-xl bg-indigo-600/10 border border-indigo-500/20">
-              <Wrench className="text-indigo-400" size={24} />
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-indigo-500/20 bg-indigo-500/10">
+              <Wrench className="text-indigo-400" size={22} />
             </div>
-
             <div>
               <h1 className="text-2xl font-bold text-white">Tools</h1>
-              <p className="text-slate-400 mt-1">
-                Capabilities available to your AI workers.
+              <p className="mt-1 text-sm text-slate-400">
+                Capabilities available to Workers at runtime.
               </p>
             </div>
           </div>
         </div>
 
-        {/* Available Tools */}
-        <section>
-          <div className="mb-4">
-            <h2 className="text-lg font-semibold text-white">
-              Available Tools
-            </h2>
-            <p className="text-sm text-slate-400 mt-1">
-              Tools registered in the AgentForge runtime.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-            {AVAILABLE_TOOLS.map((tool) => {
-              const Icon = tool.icon;
-
-              return (
-                <div
-                  key={tool.name}
-                  className="bg-slate-900 border border-slate-800 rounded-2xl p-6 hover:border-slate-700 transition-colors"
-                >
-                  {/* Tool Header */}
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-3 rounded-xl bg-slate-800">
-                        <Icon size={22} className="text-indigo-400" />
-                      </div>
-
-                      <div>
-                        <h3 className="text-white font-semibold">
-                          {tool.label}
-                        </h3>
-                        <p className="text-xs text-slate-500 mt-1">
-                          {tool.name}
-                        </p>
-                      </div>
+        <div className="grid gap-5 md:grid-cols-2">
+          {AVAILABLE_TOOLS.map((tool) => {
+            const Icon = tool.icon;
+            return (
+              <article
+                key={tool.name}
+                className="rounded-2xl border border-slate-800 bg-slate-900 p-6 transition hover:border-indigo-500/30"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-800">
+                      <Icon size={21} className="text-indigo-400" />
                     </div>
-
-                    <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-400 bg-emerald-500/10 px-2.5 py-1.5 rounded-full">
-                      <CheckCircle2 size={14} />
-                      {tool.status}
-                    </span>
+                    <div>
+                      <h2 className="font-semibold text-white">{tool.label}</h2>
+                      <code className="text-xs text-slate-500">{tool.name}</code>
+                    </div>
                   </div>
-
-                  {/* Description */}
-                  <p className="text-sm text-slate-400 mt-5 leading-relaxed">
-                    {tool.description}
-                  </p>
-
-                  {/* Permission */}
-                  <div className="mt-6 pt-4 border-t border-slate-800">
-                    <p className="text-xs text-slate-500 mb-2">
-                      Required Permission
-                    </p>
-
-                    <code className="inline-block text-xs text-indigo-300 bg-slate-800 px-3 py-2 rounded-lg">
-                      {tool.permission}
-                    </code>
-                  </div>
+                  <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1.5 text-xs font-medium text-emerald-400">
+                    <CheckCircle2 size={14} />
+                    Available
+                  </span>
                 </div>
-              );
-            })}
-          </div>
-        </section>
+
+                <p className="mt-5 text-sm leading-6 text-slate-400">{tool.description}</p>
+
+                <div className="mt-5 border-t border-slate-800 pt-4">
+                  <p className="mb-2 text-xs text-slate-500">Permission</p>
+                  <code className="rounded-lg bg-slate-800 px-3 py-2 text-xs text-indigo-300">
+                    {tool.permission}
+                  </code>
+                </div>
+              </article>
+            );
+          })}
+        </div>
       </div>
     </DashboardLayout>
   );

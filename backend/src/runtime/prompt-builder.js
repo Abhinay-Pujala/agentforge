@@ -1,11 +1,9 @@
 /**
- * Builds provider-agnostic model messages from Worker configuration,
- * user input, and optional runtime context.
+ * Builds the model prompt for a Worker execution.
  *
- * @param {Object} worker
- * @param {string} input
- * @param {Object} [context={}]
- * @returns {Array<{role: "system"|"user", content: string}>}
+ * The model receives only the context it needs to make a decision:
+ * Worker instructions, the registered workflow catalog, and resume state.
+ * Internal execution IDs and server metadata stay outside the prompt.
  */
 export function buildPrompt(worker, input, context = {}) {
   const systemParts = [];
@@ -19,24 +17,45 @@ export function buildPrompt(worker, input, context = {}) {
   }
 
   if (worker.instructions) {
-    systemParts.push(`Instructions:\n${worker.instructions}`);
+    systemParts.push(`Worker instructions:\n${worker.instructions}`);
   }
 
-  if (Array.isArray(context.workflowCatalog) && context.workflowCatalog.length > 0) {
+  const workflows = Array.isArray(context.workflowCatalog)
+    ? context.workflowCatalog
+    : [];
+
+  if (workflows.length > 0) {
     systemParts.push(
-      `Workflow execution rules:
-- When the user's request asks you to perform an action that matches an available workflow, use the n8n.trigger tool instead of only replying that you can do it.
-- Choose the matching workflow from the available workflow catalog and pass its exact workflow ID.
-- Include every value the user explicitly provided in the workflow data.
-- If some required workflow data is missing, still call n8n.trigger with the information you have. Do not invent critical values. The workflow input validator will identify missing required fields and the runtime will pause for the user to provide them.
-- Do not ask the user for required workflow fields before attempting the tool call when the workflow can be identified.
-Available workflows:
-${JSON.stringify(context.workflowCatalog, null, 2)}`,
+      `Workflow rules:
+- Act as a normal Worker for conversation, questions, explanations, and capability requests.
+- Use a registered workflow only when the user explicitly asks you to perform an actionable task that workflow can perform.
+- Never trigger a workflow because one happens to be registered.
+- Use the exact registered workflow ID. Never invent a workflow ID.
+- Extract only values actually supplied by the user.
+- Never invent recipients, dates, amounts, names, facts, or other important values.
+- If a required value is missing, leave it missing. The workflow trigger will return INPUT_REQUIRED.
+- Treat INPUT_REQUIRED and missingFields as authoritative. Stop and ask the user only for those missing values.
+- Preserve values already collected during a paused execution.
+- Follow Worker instructions for transformations. For example, an email Worker may create a concise subject and improve the user's message, but it must not invent the message itself.
+- After successful workflow completion, do not trigger the workflow again.
+Registered workflows:
+${JSON.stringify(workflows, null, 2)}`,
     );
   }
 
-  if (Object.keys(context).length > 0) {
-    systemParts.push(`Runtime context:\n${JSON.stringify(context, null, 2)}`);
+  if (context.resumedFromExecutionId) {
+    const resumeField =
+      context.resumeTargetField || "the requested missing field";
+
+    systemParts.push(
+      `Resume rules:
+- This is a continuation of a paused workflow.
+- The user's latest answer belongs to ${resumeField}.
+- Use the latest answer for that field without asking for it again.
+- Preserve all previously collected workflow values.
+- Trigger the workflow again only to continue the paused task.
+- If the workflow still reports missingFields, ask only for those fields.`,
+    );
   }
 
   return [

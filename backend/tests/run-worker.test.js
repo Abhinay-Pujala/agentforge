@@ -150,11 +150,12 @@ describe("runWorker", () => {
         model: "openai/gpt-4o-mini",
       }),
       input: "Run this task",
-      context: {
+      context: expect.objectContaining({
         userId: "user-123",
         workerId: "worker-123",
         executionId: "execution-123",
-      },
+        originalUserInput: "Run this task",
+      }),
       executionPolicy: expect.objectContaining({
         provider: "openrouter",
         timeoutMs: 30_000,
@@ -203,6 +204,7 @@ describe("runWorker", () => {
       data: {
         output: "Execution completed",
         metadata: {
+          executionId: "execution-123",
           usage: {
             prompt_tokens: 100,
             completion_tokens: 50,

@@ -64,15 +64,31 @@ export default function WorkerDetails() {
       try {
         setLoading(true);
         setError("");
-        const [workerResult, workflowResult] = await Promise.all([
+        const [workerResult, workflowResult, executionResult] = await Promise.all([
           getWorkerById(id),
           getWorkflows(),
+          getExecutions({ workerId: id, limit: 10 }),
         ]);
         setWorker(workerResult);
         const availableWorkflows = Array.isArray(workflowResult)
           ? workflowResult
           : workflowResult?.workflows || workflowResult?.data?.workflows || workflowResult?.data || [];
         setWorkflows(availableWorkflows);
+
+        const nextExecutions = executionResult?.executions || [];
+        setExecutions(nextExecutions);
+
+        const waiting = nextExecutions.find(
+          (execution) => execution.status === "WAITING_FOR_INPUT",
+        );
+
+        if (waiting) {
+          setWaitingExecution({
+            executionId: waiting._id,
+            missingFields: [],
+            workflowName: null,
+          });
+        }
       } catch (err) {
         console.error("Failed to fetch worker data:", err);
         setError(err.response?.data?.message || err.message || "Failed to load worker.");
@@ -81,25 +97,33 @@ export default function WorkerDetails() {
       }
     }
     fetchWorkerData();
-    fetchExecutions();
   }, [id]);
 
-  async function fetchExecutions() {
+  async function refreshExecutions() {
     try {
       setIsLoadingExecutions(true);
       const result = await getExecutions({ workerId: id, limit: 10 });
       const nextExecutions = result.executions || [];
       setExecutions(nextExecutions);
 
-      // Recover the waiting state from persisted execution status even if
-      // the run API response did not expose inputRequired metadata.
-      const waiting = nextExecutions.find((execution) => execution.status === "WAITING_FOR_INPUT");
+      const waiting = nextExecutions.find(
+        (execution) => execution.status === "WAITING_FOR_INPUT",
+      );
+
       if (waiting) {
-        setWaitingExecution((current) => current || {
+        setWaitingExecution((current) => ({
           executionId: waiting._id,
-          missingFields: [],
-          workflowName: null,
-        });
+          missingFields:
+            current?.executionId === waiting._id
+              ? current.missingFields || []
+              : [],
+          workflowName:
+            current?.executionId === waiting._id
+              ? current.workflowName || null
+              : null,
+        }));
+      } else {
+        setWaitingExecution(null);
       }
     } catch (err) {
       console.error("Failed to fetch execution history:", err);
@@ -144,7 +168,7 @@ export default function WorkerDetails() {
         setWaitingExecution(waiting);
       }
 
-      await fetchExecutions();
+      await refreshExecutions();
     } catch (err) {
       console.error("Failed to run worker:", err);
       setExecutionError(err.response?.data?.message || err.message || "Failed to run worker.");
@@ -173,10 +197,13 @@ export default function WorkerDetails() {
         result,
         waitingExecution.executionId,
       );
+
+      // A successful resume returns no inputRequired metadata.
+      // Clear the HITL prompt so the UI reflects the completed execution.
       setWaitingExecution(waiting);
       setResumeInput("");
 
-      await fetchExecutions();
+      await refreshExecutions();
     } catch (err) {
       console.error("Failed to resume worker:", err);
       setExecutionError(err.response?.data?.message || err.message || "Failed to resume worker.");
@@ -237,7 +264,7 @@ export default function WorkerDetails() {
           <form onSubmit={handleRunWorker} className="space-y-4">
             <div><label htmlFor="execution-input" className="mb-2 block text-sm font-medium text-slate-200">Input</label><textarea id="execution-input" value={executionInput} onChange={(event) => setExecutionInput(event.target.value)} rows={5} placeholder="Ask your worker something..." disabled={isExecuting || worker.status !== "enabled"} className="w-full resize-none rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm leading-6 text-white placeholder:text-slate-600 focus:border-indigo-500 disabled:opacity-50" /></div>
             {executionError && <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">{executionError}</div>}
-            <div className="flex items-center justify-between gap-4"><p className="text-xs text-slate-500">{worker.status === "enabled" ? "Worker is ready to execute." : "Enable this worker before running it."}</p><button type="submit" disabled={isExecuting || worker.status !== "enabled" || !executionInput.trim()} className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 cursor-pointer">{isExecuting ? <><Loader2 size={17} className="animate-spin" /> Running...</> : <><Send size={17} /> Run Worker</>}</button></div>
+            <div className="flex items-center justify-between gap-4"><p className="text-xs text-slate-500">{worker.status === "enabled" ? "Ready for a task." : "Enable this worker before running it."}</p><button type="submit" disabled={isExecuting || worker.status !== "enabled" || !executionInput.trim()} className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50 cursor-pointer">{isExecuting ? <><Loader2 size={17} className="animate-spin" /> Running...</> : <><Send size={17} /> Run Worker</>}</button></div>
           </form>
           {waitingExecution && (
             <div className="mt-6 border-t border-slate-800 pt-6">
@@ -275,7 +302,7 @@ export default function WorkerDetails() {
 
         <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
           <div className="mb-5 flex items-center justify-between"><div><h2 className="text-lg font-semibold text-white">Execution History</h2><p className="mt-1 text-sm text-slate-400">Recent executions for this worker.</p></div><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/10"><History size={18} className="text-indigo-400" /></div></div>
-          {isLoadingExecutions ? <div className="flex items-center justify-center py-10"><Loader2 size={22} className="animate-spin text-indigo-400" /></div> : executions.length === 0 ? <div className="rounded-xl border border-dashed border-slate-700 py-10 text-center"><History size={28} className="mx-auto mb-3 text-slate-600" /><p className="text-sm text-slate-400">No executions yet.</p><p className="mt-1 text-xs text-slate-600">Run this worker to see its execution history.</p></div> : <><div className="space-y-3">{displayedExecutions.map((execution) => <div key={execution._id} className="flex flex-col gap-4 rounded-xl border border-slate-800 bg-slate-950 p-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0 flex-1"><div className="flex items-center gap-2">{execution.status === "COMPLETED" ? <CheckCircle2 size={18} className="shrink-0 text-emerald-400" /> : execution.status === "FAILED" || execution.status === "TIMEOUT" ? <XCircle size={18} className="shrink-0 text-red-400" /> : <Timer size={18} className="shrink-0 text-yellow-400" />}<span className="text-sm font-medium text-white">{execution.status}</span></div><p className="mt-2 truncate text-sm text-slate-400">{execution.input}</p><p className="mt-2 text-xs text-slate-600">{new Date(execution.createdAt).toLocaleString()}</p></div>{execution.duration !== undefined && execution.duration !== null && <div className="text-sm text-slate-400">{execution.duration} ms</div>}</div>)}</div>{executions.length > 5 && <button type="button" onClick={() => setShowAllExecutions(!showAllExecutions)} className="mt-4 w-full rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white cursor-pointer">{showAllExecutions ? "Show less" : "View all executions"}</button>}</>}
+          {isLoadingExecutions ? <div className="flex items-center justify-center py-10"><Loader2 size={22} className="animate-spin text-indigo-400" /></div> : executions.length === 0 ? <div className="rounded-xl border border-dashed border-slate-700 py-10 text-center"><History size={28} className="mx-auto mb-3 text-slate-600" /><p className="text-sm text-slate-400">No executions yet.</p><p className="mt-1 text-xs text-slate-600">Run this worker to see its execution history.</p></div> : <><div className="space-y-3">{displayedExecutions.map((execution) => <div key={execution._id} className="flex flex-col gap-4 rounded-xl border border-slate-800 bg-slate-950 p-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0 flex-1"><div className="flex items-center gap-2">{execution.status === "COMPLETED" ? <CheckCircle2 size={18} className="shrink-0 text-emerald-400" /> : execution.status === "FAILED" || execution.status === "TIMEOUT" ? <XCircle size={18} className="shrink-0 text-red-400" /> : execution.status === "WAITING_FOR_INPUT" ? <Timer size={18} className="shrink-0 text-amber-400" /> : <Timer size={18} className="shrink-0 text-yellow-400" />}<span className="text-sm font-medium text-white">{execution.status}</span></div><p className="mt-2 truncate text-sm text-slate-400">{execution.input}</p><p className="mt-2 text-xs text-slate-600">{new Date(execution.createdAt).toLocaleString()}</p></div>{execution.duration !== undefined && execution.duration !== null && <div className="text-sm text-slate-400">{execution.duration} ms</div>}</div>)}</div>{executions.length > 5 && <button type="button" onClick={() => setShowAllExecutions(!showAllExecutions)} className="mt-4 w-full rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white cursor-pointer">{showAllExecutions ? "Show less" : "View all executions"}</button>}</>}
         </section>
 
         <div className="grid gap-6 md:grid-cols-2">

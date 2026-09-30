@@ -64,22 +64,40 @@ function shouldAttemptWorkflow(input, workflowCatalog) {
   return Boolean(inferWorkflowForInput(workflowCatalog, input));
 }
 
+function extractExplicitEmailMessage(input) {
+  const text = String(input || "").trim();
+
+  // Keep this intentionally conservative: only treat content introduced by
+  // an explicit message cue as user-provided email content.
+  const match = text.match(
+    /\\b(?:saying|say|with\\s+(?:the\\s+)?message|message\\s+(?:is|:)|body\\s+(?:is|:))\\s*[:\\-]?\\s*(.+)$/i,
+  );
+
+  return match?.[1]?.trim() || "";
+}
+
 function isLikelyUserProvidedMessage(message, input) {
   const messageText = String(message || "").trim().toLowerCase();
-  const inputText = String(input || "").trim().toLowerCase();
+  const explicitMessage = extractExplicitEmailMessage(input).toLowerCase();
 
-  if (!messageText || !inputText) return false;
+  if (!messageText || !explicitMessage) return false;
 
-  // Never treat a message as user-provided merely because it shares a few
-  // words with the request. For example, "Hello Abhinay!" must not be
-  // accepted for "Send an email to Abhinay.".
-  const normalize = (value) =>
+  // A model may polish the user's wording into a natural email body. Treat
+  // it as user-derived when it contains all meaningful tokens from the
+  // explicitly supplied message, while still rejecting invented bodies.
+  const normalizeTokens = (value) =>
     String(value || "")
-      .replace(/[“”]/g, '"')
-      .replace(/\\s+/g, " ")
-      .trim();
+      .replace(/[“”‘’]/g, "'")
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((token) => token.length > 2);
 
-  return normalize(inputText).includes(normalize(messageText));
+  const suppliedTokens = new Set(normalizeTokens(explicitMessage));
+  const generatedTokens = new Set(normalizeTokens(messageText));
+
+  if (suppliedTokens.size === 0) return false;
+
+  return [...suppliedTokens].every((token) => generatedTokens.has(token));
 }
 
 function getRequiredWorkflowFields(workflow) {

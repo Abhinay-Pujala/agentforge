@@ -38,3 +38,6 @@ router.post(
   validate(executionResumeSchema),
   resumeWorkerExecution,
 );
+
+
+export default router;

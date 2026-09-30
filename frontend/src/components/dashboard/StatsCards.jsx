@@ -1,25 +1,18 @@
 import { Bot, PlayCircle, Wrench, Activity } from "lucide-react";
 
-export default function StatsCards() {
+export default function StatsCards({ workers = [], executions = [] }) {
+  const completed = executions.filter((item) => item.status === "COMPLETED").length;
+  const finished = executions.filter((item) =>
+    ["COMPLETED", "FAILED", "TIMEOUT"].includes(item.status),
+  ).length;
+
   const stats = [
+    { title: "Workers", value: workers.length, icon: Bot },
+    { title: "Runs", value: executions.length, icon: PlayCircle },
+    { title: "Workflows", value: "—", icon: Wrench },
     {
-      title: "Workers",
-      value: "0",
-      icon: Bot,
-    },
-    {
-      title: "Runs",
-      value: "0",
-      icon: PlayCircle,
-    },
-    {
-      title: "Tools",
-      value: "0",
-      icon: Wrench,
-    },
-    {
-      title: "Success Rate",
-      value: "--",
+      title: "Success rate",
+      value: finished ? `${Math.round((completed / finished) * 100)}%` : "—",
       icon: Activity,
     },
   ];
@@ -32,15 +25,13 @@ export default function StatsCards() {
         return (
           <div
             key={stat.title}
-            className="rounded-2xl border border-slate-800 bg-slate-900 p-6 hover:border-indigo-500/30 transition-all duration-200"
+            className="rounded-2xl border border-slate-800 bg-slate-900 p-6 transition hover:border-indigo-500/30"
           >
             <div className="flex items-center justify-between">
-              <p className="text-slate-400 text-sm">{stat.title}</p>
-
+              <p className="text-sm text-slate-400">{stat.title}</p>
               <Icon size={20} className="text-indigo-400" />
             </div>
-
-            <h3 className="text-3xl font-bold text-white mt-4">{stat.value}</h3>
+            <h3 className="mt-4 text-3xl font-bold text-white">{stat.value}</h3>
           </div>
         );
       })}

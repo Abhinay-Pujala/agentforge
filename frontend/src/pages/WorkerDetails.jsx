@@ -81,6 +81,9 @@ export default function WorkerDetails() {
       }
     }
     fetchWorkerData();
+  });
+
+  useEffect(() => {
     fetchExecutions();
   }, [id]);
 

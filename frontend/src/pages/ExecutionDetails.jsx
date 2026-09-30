@@ -118,7 +118,9 @@ export default function ExecutionDetails() {
                   : execution.status === "FAILED" ||
                       execution.status === "TIMEOUT"
                     ? "bg-red-500/10 text-red-400"
-                    : "bg-yellow-500/10 text-yellow-400"
+                    : execution.status === "WAITING_FOR_INPUT"
+                      ? "bg-amber-500/10 text-amber-400"
+                      : "bg-yellow-500/10 text-yellow-400"
               }`}
             >
               {execution.status === "COMPLETED" ? (
@@ -126,6 +128,8 @@ export default function ExecutionDetails() {
               ) : execution.status === "FAILED" ||
                 execution.status === "TIMEOUT" ? (
                 <XCircle size={16} />
+              ) : execution.status === "WAITING_FOR_INPUT" ? (
+                <Clock size={16} />
               ) : (
                 <Loader2 size={16} className="animate-spin" />
               )}

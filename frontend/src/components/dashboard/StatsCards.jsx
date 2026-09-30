@@ -1,6 +1,6 @@
 import { Bot, PlayCircle, Wrench, Activity } from "lucide-react";
 
-export default function StatsCards({ workers = [], executions = [] }) {
+export default function StatsCards({ workers = [], executions = [], workflows = [] }) {
   const completed = executions.filter((item) => item.status === "COMPLETED").length;
   const finished = executions.filter((item) =>
     ["COMPLETED", "FAILED", "TIMEOUT"].includes(item.status),
@@ -9,7 +9,7 @@ export default function StatsCards({ workers = [], executions = [] }) {
   const stats = [
     { title: "Workers", value: workers.length, icon: Bot },
     { title: "Runs", value: executions.length, icon: PlayCircle },
-    { title: "Workflows", value: "—", icon: Wrench },
+    { title: "Workflows", value: workflows.length, icon: Wrench },
     {
       title: "Success rate",
       value: finished ? `${Math.round((completed / finished) * 100)}%` : "—",

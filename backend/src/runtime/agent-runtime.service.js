@@ -444,6 +444,21 @@ class AgentRuntime {
             workflowId = onlyWorkflow.id;
           }
 
+          // The model only controls the public n8n.trigger contract.
+          // Runtime-only fields such as resumeTargetField belong in context,
+          // never in tool arguments. Strip any accidental extra top-level
+          // fields before the generic tool-schema validator runs.
+          if (toolCall.tool === "n8n.trigger") {
+            toolCall.arguments = {
+              workflowId: toolCall.arguments?.workflowId,
+              data:
+                toolCall.arguments?.data &&
+                typeof toolCall.arguments.data === "object"
+                  ? toolCall.arguments.data
+                  : {},
+            };
+          }
+
           // When resuming a WAITING_FOR_INPUT execution, the server passes the
           // user's new value explicitly through context. Merge that value into
           // missing workflow fields before validation so the model does not

@@ -112,7 +112,7 @@ const executionSchema = new mongoose.Schema(
         },
         status: {
           type: String,
-          enum: ["COMPLETED", "FAILED", "TIMEOUT"],
+          enum: ["COMPLETED", "FAILED", "TIMEOUT", "WAITING_FOR_INPUT"],
           required: true,
         },
         error: {

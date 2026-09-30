@@ -369,7 +369,30 @@ class AgentRuntime {
 
         try {
           const workflowExecutionKey = getWorkflowExecutionKey(toolCall);
-          const workflowId = toolCall.arguments?.workflowId ?? null;
+          let workflowId = toolCall.arguments?.workflowId ?? null;
+
+          // A dedicated worker with one registered workflow is deterministic.
+          // Correct the model's workflow ID to the only allowed workflow and
+          // normalize a missing data object before validation.
+          if (
+            toolCall.tool === "n8n.trigger" &&
+            Array.isArray(context.workflowCatalog) &&
+            context.workflowCatalog.length === 1
+          ) {
+            const onlyWorkflow = context.workflowCatalog[0];
+
+            toolCall.arguments = {
+              ...toolCall.arguments,
+              workflowId: onlyWorkflow.id,
+              data:
+                toolCall.arguments?.data &&
+                typeof toolCall.arguments.data === "object"
+                  ? toolCall.arguments.data
+                  : {},
+            };
+
+            workflowId = onlyWorkflow.id;
+          }
 
           // When resuming a WAITING_FOR_INPUT execution, the server passes the
           // user's new value explicitly through context. Merge that value into

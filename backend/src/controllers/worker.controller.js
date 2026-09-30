@@ -371,6 +371,9 @@ export async function resumeWorkerExecution(req, res, next) {
       ...context,
       executionId: execution._id.toString(),
       resumedFromExecutionId: execution._id.toString(),
+      explicitWorkflowInput: {
+        message: input.trim(),
+      },
     };
 
     startedAt = new Date();

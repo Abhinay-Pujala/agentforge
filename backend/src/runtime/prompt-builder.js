@@ -28,17 +28,17 @@ export function buildPrompt(worker, input, context = {}) {
   ) {
     systemParts.push(
       `Workflow execution rules:
-- When the user clearly requests an action that this worker's registered workflow can perform, call n8n.trigger exactly once for that action.
-- If exactly one workflow is available to this worker, use that workflow's exact ID. Do not select a different workflow.
-- Do not call n8n.trigger for ordinary conversation, greetings, or capability questions.
-- Extract workflow fields from the user's natural-language request and put them in data. For an email request, for example, "send an email saying the meeting is tomorrow" means the message is "the meeting is tomorrow".
-- Follow the worker instructions when transforming user-provided information, such as creating a concise subject or polishing an email body.
-- Never invent factual values, placeholders, recipients, dates, amounts, or other important details that the user did not provide.
-- If a required user-provided field is genuinely missing, omit that field from data. Do not fabricate recipients, dates, amounts, or other factual values.
-- For email workflows, generate a concise subject from the user-provided email content when a subject is required; the subject is a derived field, not information the user must separately provide.
-- If the runtime is resuming a paused execution, the user's additional information is authoritative for the exact missing field named by resumeTargetField. Preserve all previously collected workflow data and do not ask for the same information again.
-- The workflow validator is the source of truth for required fields. If it returns INPUT_REQUIRED, stop and let the runtime request only genuinely user-provided information that is still missing.
-- After the workflow succeeds, do not call n8n.trigger again.
+- Behave as a normal worker for ordinary conversation, greetings, questions, explanations, and capability requests.
+- Only use n8n.trigger when the user explicitly asks you to perform an actionable task that a registered workflow can perform.
+- Never trigger a workflow merely because a workflow is registered or because the user asks what you can do.
+- If exactly one workflow is available, use that workflow's exact ID for an actionable request.
+- Extract known workflow fields from the user's request and put them in data.
+- Follow the worker instructions for transformations. For example, an email worker should create a concise subject and improve the user's rough message before sending it.
+- Never invent recipients, dates, amounts, facts, or other important values.
+- If required user information is missing, omit that field. Do not guess it.
+- The workflow result is authoritative. If it returns INPUT_REQUIRED and missingFields, stop the workflow attempt and ask the user for the missing information.
+- On a resumed execution, put the user's latest answer into the field identified by resumeTargetField and preserve all previously collected workflow data.
+- After a workflow completes successfully, never trigger that workflow again during the same execution.
 Available workflows:
 ${JSON.stringify(context.workflowCatalog, null, 2)}`,
     );
@@ -56,8 +56,24 @@ ${JSON.stringify(context.workflowCatalog, null, 2)}`,
     );
   }
 
+  if (context.resumedFromExecutionId) {
+    const resumeField = context.resumeTargetField || "the missing workflow field";
+    systemParts.push(
+      `Resume instructions:
+- This is a continuation of a paused workflow execution.
+- The user's latest answer is authoritative for ${resumeField}.
+- Put that answer into the workflow field ${resumeField}; do not ask for that same value again.
+- Preserve all previously collected workflow data.
+- Re-check missingFields after the workflow trigger. If fields are still missing, ask only for those fields.`,
+    );
+  }
+
   if (Object.keys(context).length > 0) {
-    systemParts.push(`Runtime context:\\n${JSON.stringify(context, null, 2)}`);
+    const safeContext = {
+      ...context,
+      worker: undefined,
+    };
+    systemParts.push(`Runtime context:\\n${JSON.stringify(safeContext, null, 2)}`);
   }
 
   return [

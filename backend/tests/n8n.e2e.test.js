@@ -86,6 +86,20 @@ describe("AgentForge → n8n integration", () => {
         workerId: "worker-123",
         executionId: "execution-456",
         worker,
+        workflowCatalog: [{
+          id: "workflow-123",
+          name: "Gmail Automation",
+          description: "Send a message through Gmail.",
+          category: "email",
+          inputSchema: {
+            type: "object",
+            properties: {
+              message: { type: "string" },
+            },
+            required: ["message"],
+            additionalProperties: false,
+          },
+        }],
       },
     });
 

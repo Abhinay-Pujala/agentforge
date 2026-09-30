@@ -5,9 +5,11 @@ import WelcomeCard from "../components/dashboard/WelcomeCard";
 import DashboardLayout from "../layouts/DashboardLayout";
 import { getExecutions } from "../services/execution.service";
 import { getWorkers } from "../services/worker.service";
+import { getWorkflows } from "../services/workflow.service";
 
 export default function Dashboard() {
   const [workers, setWorkers] = useState([]);
+  const [workflows, setWorkflows] = useState([]);
   const [executions, setExecutions] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -16,14 +18,16 @@ export default function Dashboard() {
 
     async function load() {
       try {
-        const [workerResult, executionResult] = await Promise.all([
+        const [workerResult, executionResult, workflowResult] = await Promise.all([
           getWorkers(),
           getExecutions({ limit: 10 }),
+          getWorkflows(),
         ]);
 
         if (mounted) {
           setWorkers(workerResult || []);
           setExecutions(executionResult?.executions || []);
+          setWorkflows(workflowResult || []);
         }
       } catch (error) {
         console.error("Failed to load dashboard:", error);
@@ -48,7 +52,7 @@ export default function Dashboard() {
           </div>
         ) : (
           <>
-            <StatsCards workers={workers} executions={executions} />
+            <StatsCards workers={workers} executions={executions} workflows={workflows} />
             <RecentActivity executions={executions} />
           </>
         )}

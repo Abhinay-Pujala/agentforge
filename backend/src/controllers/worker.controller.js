@@ -381,11 +381,25 @@ export async function resumeWorkerExecution(req, res, next) {
           Array.isArray(toolCall.result.missingFields),
       );
 
-    const missingFields = lastInputRequiredCall?.result?.missingFields || [];
-    const explicitWorkflowInput =
-      missingFields.length === 1
-        ? { [missingFields[0]]: input.trim() }
-        : {};
+    const missingFields = lastInputRequiredCall?.result.missingFields || [];
+
+    // Prefer a free-form content field for HITL replies. For example,
+    // "birthday wishes" should fill message/text/body/content, while the
+    // model can generate a subject from that content.
+    const bodyField = missingFields.find((field) =>
+      ["message", "text", "body", "content"].includes(
+        String(field).trim().toLowerCase(),
+      ),
+    );
+
+    const targetField =
+      bodyField ||
+      (missingFields.length === 1 ? missingFields[0] : null);
+
+    const explicitWorkflowInput = targetField
+      ? { [targetField]: input.trim() }
+      : {};
+
 
     const executionContext = {
       ...context,
@@ -393,6 +407,8 @@ export async function resumeWorkerExecution(req, res, next) {
       resumedFromExecutionId: execution._id.toString(),
       explicitWorkflowInput,
       explicitUserInput: input.trim(),
+      // Preserve the original request and the HITL reply for grounding checks.
+      originalUserInput: `${execution.input}\n${input.trim()}`,
       missingWorkflowFields: missingFields,
     };
 

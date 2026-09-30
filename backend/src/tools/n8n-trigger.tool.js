@@ -88,6 +88,27 @@ function hasExplicitFreeformInput(userInput, fieldName) {
   return false;
 }
 
+function extractEmails(value) {
+  if (typeof value !== "string") return [];
+  return value.match(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi) || [];
+}
+
+function isRecipientField(fieldName) {
+  return [
+    "to",
+    "recipient",
+    "email",
+    "recipientemail",
+    "destination",
+  ].includes(
+    String(fieldName || "")
+      .replace(/([a-z])([A-Z])/g, "$1 $2")
+      .replace(/[_-]+/g, " ")
+      .replace(/\s+/g, "")
+      .toLowerCase(),
+  );
+}
+
 function removePlaceholderValues(value) {
   if (Array.isArray(value)) {
     return value.map(removePlaceholderValues);
@@ -215,6 +236,48 @@ export const n8nTriggerTool = {
 
       return !hasExplicitFreeformInput(userInput, field);
     });
+
+    const explicitUserEmails = new Set([
+      ...extractEmails(userInput),
+      ...Object.values(explicitWorkflowInput).flatMap(extractEmails),
+    ].map((email) => email.toLowerCase()));
+
+    // Recipients are factual user data. Never allow the model, worker prompt,
+    // or a downstream default to invent one. If a recipient field is present,
+    // it must be grounded in an email address supplied by the user/resume.
+    const recipientFields = requiredFields.filter(isRecipientField);
+    const missingRecipientFields = recipientFields.filter((field) => {
+      const value = sanitizedData[field];
+
+      if (
+        value !== undefined &&
+        value !== null &&
+        String(value).trim() &&
+        !isPlaceholderValue(value, field)
+      ) {
+        const suppliedEmails = extractEmails(String(value)).map((email) =>
+          email.toLowerCase(),
+        );
+        return suppliedEmails.length === 0 ||
+          suppliedEmails.some((email) => !explicitUserEmails.has(email));
+      }
+
+      return explicitUserEmails.size === 0;
+    });
+
+    if (missingRecipientFields.length > 0) {
+      return {
+        status: "INPUT_REQUIRED",
+        workflowId: workflow._id.toString(),
+        workflowName: workflow.name,
+        missingFields: missingRecipientFields,
+        validationErrors: missingRecipientFields.map(
+          (field) => `arguments.${field} must be supplied by the user`,
+        ),
+        message:
+          "Additional workflow input is required before this workflow can run.",
+      };
+    }
 
     if (missingUserFreeformFields.length > 0) {
       return {

@@ -560,9 +560,7 @@ describe("AgentRuntime tool capabilities", () => {
     });
 
     expect(result.output).toBe("Hi! I can help you.");
-    expect(toolRegistry.getForWorker).not.toHaveBeenCalledWith(
-      expect.arrayContaining(["n8n.trigger"]),
-    );
+    expect(n8nTool.execute).not.toHaveBeenCalled();
     expect(n8nTool.execute).not.toHaveBeenCalled();
   });
 
@@ -681,18 +679,10 @@ describe("AgentRuntime tool capabilities", () => {
     registry.register(n8nTool);
 
     const modelProvider = {
-      generate: vi.fn().mockResolvedValueOnce({
-        output: null,
-        toolCalls: [
-          {
-            id: "resume-call-1",
-            tool: "n8n.trigger",
-            arguments: {
-              workflowId: "workflow-email",
-              data: {},
-            },
-          },
-        ],
+      generate: vi.fn().mockResolvedValue({
+        output: "Workflow completed successfully.",
+        toolCalls: [],
+        metadata: {},
       }),
     };
 

@@ -679,11 +679,27 @@ describe("AgentRuntime tool capabilities", () => {
     registry.register(n8nTool);
 
     const modelProvider = {
-      generate: vi.fn().mockResolvedValue({
-        output: "Workflow completed successfully.",
-        toolCalls: [],
-        metadata: {},
-      }),
+      generate: vi
+        .fn()
+        .mockResolvedValueOnce({
+          output: null,
+          toolCalls: [
+            {
+              id: "resume-call-1",
+              tool: "n8n.trigger",
+              arguments: {
+                workflowId: "workflow-email",
+                data: {},
+              },
+            },
+          ],
+          metadata: {},
+        })
+        .mockResolvedValueOnce({
+          output: "Workflow completed successfully.",
+          toolCalls: [],
+          metadata: {},
+        }),
     };
 
     const runtime = new AgentRuntime(modelProvider, registry);

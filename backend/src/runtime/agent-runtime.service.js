@@ -423,10 +423,23 @@ class AgentRuntime {
             };
 
             for (const [field, value] of Object.entries(explicitInput)) {
-              if (typeof value === "string" && value.trim()) {
-                data[field] = value.trim();
-              } else if (value !== undefined && value !== null) {
-                data[field] = value;
+              // The explicit answer is authoritative input, but it is not
+              // necessarily the final formatted workflow value. Let the model
+              // transform it (for example, "birthday wishes" -> a polished
+              // email body). Only use the raw answer as a fallback when the
+              // model omitted the field or produced a placeholder.
+              const currentValue = data[field];
+              const isMissing =
+                currentValue === undefined ||
+                currentValue === null ||
+                (typeof currentValue === "string" && !currentValue.trim());
+
+              if (isMissing) {
+                if (typeof value === "string" && value.trim()) {
+                  data[field] = value.trim();
+                } else if (value !== undefined && value !== null) {
+                  data[field] = value;
+                }
               }
             }
 

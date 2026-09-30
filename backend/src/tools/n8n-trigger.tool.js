@@ -108,6 +108,10 @@ function isEmailWorkflow(workflow) {
 function deriveEmailSubject(data, workflow) {
   if (!isEmailWorkflow(workflow)) return data;
 
+  // Only derive a subject when the registered workflow schema actually
+  // accepts a subject field. Never add fields that the workflow forbids.
+  if (!workflow?.inputSchema?.properties?.subject) return data;
+
   const subject = data.subject;
   const message = data.message ?? data.text ?? data.body ?? data.content;
 

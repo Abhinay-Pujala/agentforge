@@ -196,10 +196,6 @@ class AgentRuntime {
       executionPolicy?.maxToolRounds ?? DEFAULT_MAX_TOOL_ROUNDS;
 
     let toolRounds = 0;
-    let workflowToolRetryUsed = false;
-    let workflowCompletionRetryUsed = false;
-    let inputRecoveryAttempts = 0;
-    let resumedInputRecoveryUsed = false;
     const workflowIntentDetected = shouldAttemptWorkflow(
       input,
       context.workflowCatalog,
@@ -245,77 +241,43 @@ class AgentRuntime {
           };
         }
 
-        if (
-          successfulWorkflowExecution &&
-          !workflowCompletionRetryUsed
-        ) {
-          workflowCompletionRetryUsed = true;
-
-          messages.push({
-            role: "system",
-            content:
-              "A workflow has just completed successfully. Before finishing, verify whether the ORIGINAL user request is fully satisfied. If another registered workflow is required to complete the request, call n8n.trigger for that next step now. Use outputs from completed workflows as inputs for later workflows. If the request is already fully satisfied, respond with a concise final confirmation and do not call a workflow again.",
-          });
-
-          continue;
-        }
-
-        if (
-          hasWorkflowTools &&
-          workflowIntentDetected &&
-          !workflowToolRetryUsed
-        ) {
-          workflowToolRetryUsed = true;
-          workflowCallRequired = true;
-
-          messages.push({
-            role: "system",
-            content:
-              "This request matches an available workflow. Execute the matching workflow now. You MUST call n8n.trigger. Extract every workflow field whose value is clearly present in the original user request or previous tool results. Omit only genuinely unresolved fields; never invent placeholders. The workflow validator will handle missing input.",
-          });
-
-          continue;
-        }
-
-        if (hasWorkflowTools && workflowIntentDetected && workflowToolRetryUsed) {
+        // A workflow-intent request must produce a workflow call. Do not
+        // repeatedly ask the model to retry; this execution gets one model
+        // decision and one workflow attempt.
+        if (workflowCallRequired && hasWorkflowTools) {
           const workflow = inferWorkflowForInput(
             context.workflowCatalog,
             input,
           );
 
-          if (workflow) {
-            const requiredFields = getRequiredWorkflowFields(workflow);
-
-            return {
-              success: true,
-              output:
-                normalizedResponse.output ||
-                "Additional workflow input is required before this action can continue.",
-              metadata: {
-                ...normalizedResponse.metadata,
-                inputRequired: {
-                  workflowId: workflow.id,
-                  workflowName: workflow.name,
-                  missingFields: requiredFields,
-                  reason: "WORKFLOW_TOOL_NOT_CALLED",
-                },
-              },
-              toolCalls: toolCallRecords,
-            };
-          }
+          return {
+            success: true,
+            output:
+              normalizedResponse.output ||
+              "Additional workflow input is required before this action can continue.",
+            metadata: workflow
+              ? {
+                  ...normalizedResponse.metadata,
+                  inputRequired: {
+                    workflowId: workflow.id,
+                    workflowName: workflow.name,
+                    missingFields: getRequiredWorkflowFields(workflow),
+                    reason: "WORKFLOW_TOOL_NOT_CALLED",
+                  },
+                }
+              : normalizedResponse.metadata,
+            toolCalls: toolCallRecords,
+          };
         }
 
-        const result = {
+        return {
           success: true,
           output: normalizedResponse.output,
           metadata: normalizedResponse.metadata,
+          ...(toolCallRecords.length > 0
+            ? { toolCalls: toolCallRecords }
+            : {}),
         };
-
-        if (toolCallRecords.length > 0) {
-          result.toolCalls = toolCallRecords;
-        }
-
-        return result;
       }
 
       toolRounds += 1;
@@ -544,40 +506,10 @@ class AgentRuntime {
           }
 
           if (toolResult?.status === "INPUT_REQUIRED") {
-            inputRecoveryAttempts += 1;
-
-            const resumedFields = Object.keys(
-              context.explicitWorkflowInput || {},
-            );
-            const unresolvedFields = toolResult.missingFields || [];
-            const canAutoRecoverResume =
-              resumedFields.length > 0 &&
-              !resumedInputRecoveryUsed &&
-              unresolvedFields.some((field) =>
-                resumedFields.includes(field),
-              );
-
-            if (canAutoRecoverResume) {
-              resumedInputRecoveryUsed = true;
-              workflowCallRequired = true;
-
-              // The user already supplied this value in the current resume
-              // request. Do not ask for it again. Give the model one
-              // deterministic continuation opportunity with the exact
-              // missing field/value available in context.
-              messages.push({
-                role: "system",
-                content:
-                  "The user has already supplied the missing workflow information in this resume request. Do not ask for it again. Call n8n.trigger now and use the explicit resumed value for the missing field. Preserve all previously resolved workflow data and do not invent placeholders.",
-              });
-
-              continue;
-            }
-
             inputRequired = {
               workflowId: toolResult.workflowId,
               workflowName: toolResult.workflowName,
-              missingFields: unresolvedFields,
+              missingFields: toolResult.missingFields || [],
               validationErrors: toolResult.validationErrors || [],
             };
           }

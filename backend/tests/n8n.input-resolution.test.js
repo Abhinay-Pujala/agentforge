@@ -117,6 +117,29 @@ describe("n8n workflow input resolution", () => {
   });
 
 
+  it("requires user-provided email content before execution", async () => {
+    const result = await n8nTriggerTool.execute(
+      {
+        workflowId: "workflow-123",
+        data: {
+          to: "user@example.com",
+          message: "No message provided.",
+        },
+      },
+      {
+        userId: "user-123",
+        workerId: "worker-123",
+        executionId: "execution-456",
+        originalUserInput: "Send an email to user@example.com",
+        worker: { workflowIds: ["workflow-123"] },
+      },
+    );
+
+    expect(result.status).toBe("INPUT_REQUIRED");
+    expect(result.missingFields).toEqual(["message"]);
+    expect(triggerN8nWorkflowMock).not.toHaveBeenCalled();
+  });
+
   it("reports a missing subject instead of deriving it", async () => {
     const result = await n8nTriggerTool.execute(
       {

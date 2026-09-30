@@ -36,6 +36,24 @@ const RECIPIENT_RESUME_FIELDS = [
   "destination",
 ];
 
+function normalizeMissingFields(value) {
+  if (Array.isArray(value)) {
+    return value.map((field) => String(field).trim()).filter(Boolean);
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    return [value.trim()];
+  }
+
+  if (value && typeof value === "object") {
+    return Object.entries(value)
+      .filter(([, required]) => Boolean(required))
+      .map(([field]) => field);
+  }
+
+  return [];
+}
+
 function selectResumeField(missingFields, input) {
   if (!Array.isArray(missingFields) || missingFields.length === 0) {
     return null;
@@ -448,10 +466,12 @@ export async function resumeWorkerExecution(req, res, next) {
       .find(
         (toolCall) =>
           toolCall?.result?.status === "INPUT_REQUIRED" &&
-          Array.isArray(toolCall.result.missingFields),
+          normalizeMissingFields(toolCall.result.missingFields).length > 0,
       );
 
-    const missingFields = lastInputRequiredCall?.result?.missingFields || [];
+    const missingFields = normalizeMissingFields(
+      lastInputRequiredCall?.result?.missingFields,
+    );
     const previousWorkflowData =
       lastInputRequiredCall?.arguments?.data &&
       typeof lastInputRequiredCall.arguments.data === "object"

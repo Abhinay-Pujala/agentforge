@@ -367,13 +367,32 @@ export async function resumeWorkerExecution(req, res, next) {
     }
 
     const executionPolicy = validateExecutionPolicy(worker);
+
+    // Recover the fields that caused the WAITING_FOR_INPUT state from the
+    // persisted tool result. If there is exactly one missing field, the
+    // user's follow-up is deterministically assigned to that field. This
+    // keeps resume generic for any workflow, not just email/message fields.
+    const lastInputRequiredCall = [...(execution.toolCalls || [])]
+      .reverse()
+      .find(
+        (toolCall) =>
+          toolCall?.result?.status === "INPUT_REQUIRED" &&
+          Array.isArray(toolCall.result.missingFields),
+      );
+
+    const missingFields = lastInputRequiredCall?.result?.missingFields || [];
+    const explicitWorkflowInput =
+      missingFields.length === 1
+        ? { [missingFields[0]]: input.trim() }
+        : {};
+
     const executionContext = {
       ...context,
       executionId: execution._id.toString(),
       resumedFromExecutionId: execution._id.toString(),
-      explicitWorkflowInput: {
-        message: input.trim(),
-      },
+      explicitWorkflowInput,
+      explicitUserInput: input.trim(),
+      missingWorkflowFields: missingFields,
     };
 
     startedAt = new Date();

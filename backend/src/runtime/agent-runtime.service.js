@@ -394,13 +394,7 @@ class AgentRuntime {
             };
 
             for (const [field, value] of Object.entries(explicitInput)) {
-              if (
-                (data[field] === undefined ||
-                  data[field] === null ||
-                  data[field] === "") &&
-                typeof value === "string" &&
-                value.trim()
-              ) {
+              if (typeof value === "string" && value.trim()) {
                 data[field] = value.trim();
               }
             }

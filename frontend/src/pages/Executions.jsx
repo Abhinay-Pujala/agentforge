@@ -105,7 +105,7 @@ export default function Executions() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [pagination.limit]);
 
   return (
     <DashboardLayout title="Executions">

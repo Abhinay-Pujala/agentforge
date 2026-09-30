@@ -838,7 +838,7 @@ describe("AgentRuntime tool capabilities", () => {
   it("does not retry indefinitely when resumed input remains unresolved", async () => {
     const n8nTool = {
       name: "n8n.trigger",
-      description: "Trigger a registered n8n workflow.",
+      description: "Trigger a registered workflow.",
       schema: {
         type: "object",
         properties: {
@@ -846,7 +846,6 @@ describe("AgentRuntime tool capabilities", () => {
           data: { type: "object", additionalProperties: true },
         },
         required: ["workflowId", "data"],
-        additionalProperties: false,
       },
       execute: vi.fn().mockResolvedValue({
         status: "INPUT_REQUIRED",
@@ -863,18 +862,14 @@ describe("AgentRuntime tool capabilities", () => {
     const modelProvider = {
       generate: vi.fn().mockResolvedValue({
         output: null,
-        toolCalls: [
-          {
-            id: "resume-call-1",
-            tool: "n8n.trigger",
-            arguments: {
-              workflowId: "workflow-email",
-              data: {
-                to: "user@example.com",
-              },
-            },
+        toolCalls: [{
+          id: "resume-call-1",
+          tool: "n8n.trigger",
+          arguments: {
+            workflowId: "workflow-email",
+            data: { to: "user@example.com" },
           },
-        ],
+        }],
       }),
     };
 
@@ -889,32 +884,29 @@ describe("AgentRuntime tool capabilities", () => {
         workflowIds: ["workflow-email"],
         configuration: {},
       },
-      input: "Original request:
+      input: `Original request:
 Send an email to user@example.com
 
 User provided additional information:
-Birthday wishes",
+Birthday wishes`,
       context: {
-        workflowCatalog: [
-          {
-            id: "workflow-email",
-            name: "Email Automation",
-            inputSchema: {
-              type: "object",
-              properties: {
-                to: { type: "string" },
-                message: { type: "string" },
-              },
-              required: ["to", "message"],
+        workflowCatalog: [{
+          id: "workflow-email",
+          name: "Email Automation",
+          inputSchema: {
+            type: "object",
+            properties: {
+              to: { type: "string" },
+              message: { type: "string" },
             },
+            required: ["to", "message"],
           },
-        ],
+        }],
         explicitWorkflowInput: { message: "Birthday wishes" },
         pendingWorkflowData: { to: "user@example.com" },
         resumedFromExecutionId: "execution-123",
-        originalUserInput:
-          "Send an email to user@example.com
-Birthday wishes",
+        originalUserInput: `Send an email to user@example.com
+Birthday wishes`,
       },
     });
 

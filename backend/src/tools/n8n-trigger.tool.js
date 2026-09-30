@@ -209,7 +209,7 @@ export const n8nTriggerTool = {
       throw error;
     }
 
-    return triggerN8nWorkflow({
+    const workflowResult = await triggerN8nWorkflow({
       workflowId: workflow._id.toString(),
       workflow: workflow.name,
       webhookUrl: workflow.webhook.url,
@@ -217,5 +217,16 @@ export const n8nTriggerTool = {
       workerId: context.workerId,
       executionId: context.executionId,
     });
+
+    if (workflowResult?.status === "INPUT_REQUIRED") {
+      return {
+        ...workflowResult,
+        workflowId: workflow._id.toString(),
+        workflowName: workflow.name,
+        missingFields: workflowResult.missingFields || [],
+      };
+    }
+
+    return workflowResult;
   },
 };

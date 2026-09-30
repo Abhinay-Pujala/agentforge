@@ -250,6 +250,7 @@ export async function runWorker(req, res, next) {
     const executionContext = {
       ...context,
       executionId: execution._id.toString(),
+      originalUserInput: input.trim(),
     };
 
     startedAt = new Date();

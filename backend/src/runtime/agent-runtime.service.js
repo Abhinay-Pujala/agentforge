@@ -544,7 +544,10 @@ class AgentRuntime {
                 });
 
           record.result = toolResult;
-          record.status = "COMPLETED";
+          record.status =
+            toolResult?.status === "INPUT_REQUIRED"
+              ? "WAITING_FOR_INPUT"
+              : "COMPLETED";
 
           if (toolCall.tool === "n8n.trigger") {
             workflowCallRequired = toolResult?.status === "INPUT_REQUIRED";

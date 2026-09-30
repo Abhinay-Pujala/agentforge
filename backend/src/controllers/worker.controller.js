@@ -12,6 +12,74 @@ import {
   getExecutionById,
 } from "../services/execution.service.js";
 
+const FREEFORM_RESUME_FIELDS = [
+  "message",
+  "text",
+  "body",
+  "content",
+  "description",
+  "details",
+  "notes",
+  "instructions",
+  "prompt",
+  "query",
+  "request",
+  "comment",
+  "reason",
+];
+
+const RECIPIENT_RESUME_FIELDS = [
+  "to",
+  "recipient",
+  "email",
+  "recipientEmail",
+  "destination",
+];
+
+function selectResumeField(missingFields, input) {
+  if (!Array.isArray(missingFields) || missingFields.length === 0) {
+    return null;
+  }
+
+  const normalizedFields = missingFields.map((field) => ({
+    original: field,
+    normalized: String(field).trim().toLowerCase(),
+  }));
+
+  const looksLikeEmailAddress =
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(input || "").trim());
+
+  if (looksLikeEmailAddress) {
+    const recipientField = normalizedFields.find(({ normalized }) =>
+      RECIPIENT_RESUME_FIELDS.includes(normalized),
+    );
+
+    if (recipientField) {
+      return recipientField.original;
+    }
+  }
+
+  const freeformField = normalizedFields.find(({ normalized }) =>
+    FREEFORM_RESUME_FIELDS.includes(normalized),
+  );
+
+  if (freeformField) {
+    return freeformField.original;
+  }
+
+  return missingFields[0];
+}
+
+function addExecutionIdToMetadata(result, executionId) {
+  return {
+    ...(result || {}),
+    metadata: {
+      ...(result?.metadata || {}),
+      executionId: executionId.toString(),
+    },
+  };
+}
+
 export async function createWorker(req, res, next) {
   try {
     const {
@@ -269,6 +337,8 @@ export async function runWorker(req, res, next) {
       executionPolicy,
     });
 
+    result = addExecutionIdToMetadata(result, execution._id);
+
     const usage = result.metadata?.usage;
 
     if (result.metadata?.inputRequired) {
@@ -391,10 +461,16 @@ export async function resumeWorkerExecution(req, res, next) {
     // Preserve every value already collected before the pause. The user's
     // reply is layered on top of that state and the runtime will merge it
     // into the next workflow tool call. This is generic for any schema.
-    const explicitWorkflowInput =
-      missingFields.length === 1
-        ? { [missingFields[0]]: input.trim() }
-        : {};
+    // Assign one natural-language follow-up to the most appropriate
+    // missing field. Prefer a recipient when the answer is an email address;
+    // otherwise prefer a free-form content field such as message/text/body.
+    // This prevents a resume such as "Birthday wishes" from being consumed
+    // by an unrelated missing field like subject.
+    const resumeField = selectResumeField(missingFields, input);
+
+    const explicitWorkflowInput = resumeField
+      ? { [resumeField]: input.trim() }
+      : {};
 
 
     const executionContext = {
@@ -403,6 +479,7 @@ export async function resumeWorkerExecution(req, res, next) {
       resumedFromExecutionId: execution._id.toString(),
       explicitWorkflowInput,
       explicitUserInput: input.trim(),
+      resumeTargetField: resumeField,
       originalUserInput: `${execution.input}\n${input.trim()}`,
       pendingWorkflowData: previousWorkflowData,
       missingWorkflowFields: missingFields,
@@ -430,6 +507,8 @@ ${input}`,
       executionPolicy,
     });
 
+    result = addExecutionIdToMetadata(result, execution._id);
+
     const usage = result.metadata?.usage;
     validateExecutionCost(usage?.cost);
 
@@ -437,6 +516,13 @@ ${input}`,
     const executionStatus = result.metadata?.inputRequired
       ? "WAITING_FOR_INPUT"
       : "COMPLETED";
+
+    const previousToolCalls = Array.isArray(execution.toolCalls)
+      ? execution.toolCalls
+      : [];
+    const resumedToolCalls = Array.isArray(result.toolCalls)
+      ? result.toolCalls
+      : [];
 
     await updateExecutionStatus(execution._id, {
       status: executionStatus,
@@ -449,7 +535,7 @@ ${input}`,
         totalTokens: result.metadata?.usage?.total_tokens ?? null,
       },
       cost: result.metadata?.usage?.cost ?? null,
-      toolCalls: result.toolCalls || [],
+      toolCalls: [...previousToolCalls, ...resumedToolCalls],
     });
 
     return res.status(200).json({

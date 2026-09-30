@@ -28,12 +28,13 @@ export function buildPrompt(worker, input, context = {}) {
   ) {
     systemParts.push(
       `Workflow execution rules:
-- This worker is configured to execute one registered workflow for each user request. Call n8n.trigger exactly once for the selected workflow.
+- When the user clearly requests an action that this worker's registered workflow can perform, call n8n.trigger exactly once for that action.
 - If exactly one workflow is available to this worker, use that workflow's exact ID. Do not select a different workflow.
+- Do not call n8n.trigger for ordinary conversation, greetings, or capability questions.
 - Extract workflow fields from the user's natural-language request and put them in data. For an email request, for example, "send an email saying the meeting is tomorrow" means the message is "the meeting is tomorrow".
 - Follow the worker instructions when transforming user-provided information, such as creating a concise subject or polishing an email body.
 - Never invent factual values, placeholders, recipients, dates, amounts, or other important details that the user did not provide.
-- If a required field is genuinely missing, omit that field from data. Do not fabricate it and do not answer with a text question before the tool call.
+- If a required field is genuinely missing, omit that field from data. Do not fabricate it. If the runtime is resuming a paused execution, treat the user's additional information as authoritative for the missing field.
 - The workflow validator is the source of truth for required fields. If it returns INPUT_REQUIRED, stop and let the runtime request that field from the user.
 - After the workflow succeeds, do not call n8n.trigger again.
 Available workflows:

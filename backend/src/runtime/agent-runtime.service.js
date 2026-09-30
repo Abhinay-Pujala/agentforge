@@ -61,14 +61,17 @@ function shouldAttemptWorkflow(input, workflowCatalog) {
     return false;
   }
 
-  // A worker configured with exactly one workflow is deterministic: that
-  // workflow is the only action this worker can perform for the request.
-  if (workflowCatalog.length === 1) {
-    return true;
-  }
-
+  // General conversation must never trigger a workflow. A single-workflow
+  // worker only becomes deterministic after the request clearly expresses an
+  // action that could be performed by a workflow.
   if (!hasWorkflowIntent(input)) {
     return false;
+  }
+
+  // Once workflow intent is present, a worker with exactly one registered
+  // workflow can deterministically use that workflow.
+  if (workflowCatalog.length === 1) {
+    return true;
   }
 
   return Boolean(inferWorkflowForInput(workflowCatalog, input));

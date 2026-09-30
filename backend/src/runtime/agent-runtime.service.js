@@ -56,11 +56,12 @@ function isConversationalInput(input) {
 
   if (!normalized) return true;
 
-  return /^(?:hi|hello|hey|yo|thanks|thank you|good morning|good afternoon|good evening)[!,.\s]*$/i.test(normalized)
-    || /^(?:what can you do|what do you do|who are you|how can you help|what are your capabilities)[?!.,\s]*$/i.test(normalized)
-    || /^(?:can you|could you) (?:explain|tell me about|describe|help me understand)\b/i.test(normalized);
+  return /^(?:hi|hello|hey|yo|thanks|thank you|good morning|good afternoon|good evening)[!,.s]*$/i.test(normalized)
+    || /^(?:what can you do|what do you do|who are you|how can you help|what are your capabilities)[?!.,s]*$/i.test(normalized)
+    || /^(?:can you|could you) (?:explain|tell me about|describe|help me understand)\b/i.test(normalized)
+    || /^(?:how do i|how can i|what is|what are|why does|why is|tell me about)\b/i.test(normalized)
+    || /^(?:can|could|would|should|do|does|is|are)\b[^\n]*\?$/i.test(normalized);
 }
-
 function isWorkflowPlaceholderInput(input) {
   const normalized = String(input || "")
     .trim()

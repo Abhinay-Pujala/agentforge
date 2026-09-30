@@ -2,6 +2,50 @@ import { assertWorkflowAccess } from "../services/workflow.service.js";
 import { validateToolArguments } from "./tool-schema-validator.js";
 import { triggerN8nWorkflow } from "../services/n8n.service.js";
 
+function isPlaceholderValue(value) {
+  if (typeof value !== "string") return false;
+
+  const normalized = value.trim().toLowerCase();
+
+  if (!normalized) return true;
+
+  return [
+    "unknown",
+    "not provided",
+    "not specified",
+    "not available",
+    "n/a",
+    "na",
+    "none",
+    "null",
+    "undefined",
+    "missing",
+    "required",
+    "placeholder",
+  ].includes(normalized) ||
+    /^(?:[a-z][a-z0-9 _-]*)\\s+required$/.test(normalized) ||
+    /^(?:[a-z][a-z0-9 _-]*)\\s+(?:missing|unknown|not provided|not specified)$/.test(
+      normalized,
+    );
+}
+
+function removePlaceholderValues(value) {
+  if (Array.isArray(value)) {
+    return value.map(removePlaceholderValues);
+  }
+
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([, fieldValue]) => !isPlaceholderValue(fieldValue))
+      .map(([key, fieldValue]) => [key, removePlaceholderValues(fieldValue)]),
+  );
+}
+
+
 export const n8nTriggerTool = {
   name: "n8n.trigger",
   description:
@@ -49,8 +93,14 @@ export const n8nTriggerTool = {
       context.userId,
     );
 
+    // Models sometimes emit placeholder strings such as "Message Required"
+    // instead of omitting a field. Treat those exactly like missing values so
+    // the workflow schema can return INPUT_REQUIRED rather than executing with
+    // fake data.
+    const sanitizedData = removePlaceholderValues(toolArguments.data);
+
     const validation = validateToolArguments(
-      toolArguments.data,
+      sanitizedData,
       workflow.inputSchema,
     );
 
@@ -92,7 +142,7 @@ export const n8nTriggerTool = {
       workflowId: workflow._id.toString(),
       workflow: workflow.name,
       webhookUrl: workflow.webhook.url,
-      data: toolArguments.data,
+      data: sanitizedData,
       workerId: context.workerId,
       executionId: context.executionId,
     });

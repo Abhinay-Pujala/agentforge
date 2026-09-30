@@ -77,6 +77,43 @@ function shouldAttemptWorkflow(input, workflowCatalog) {
   return Boolean(inferWorkflowForInput(workflowCatalog, input));
 }
 
+function isPlaceholderWorkflowValue(value, fieldName = "") {
+  if (typeof value !== "string") return false;
+
+  const normalized = value.trim().toLowerCase().replace(/[.!?]+$/, "");
+  if (!normalized) return true;
+
+  const generic = new Set([
+    "unknown", "not provided", "not specified", "not available",
+    "n/a", "na", "none", "null", "undefined", "missing",
+    "required", "placeholder",
+  ]);
+
+  if (generic.has(normalized)) return true;
+
+  const field = String(fieldName || "")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .trim()
+    .toLowerCase();
+
+  const aliases = ["message", "text", "body", "content"].includes(field)
+    ? ["message", "text", "body", "content"]
+    : [field];
+
+  return aliases.some((alias) => {
+    const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, "\\function getRequiredWorkflowFields(workflow) {");
+    return new RegExp(
+      "^(?:no\\s+)?" + alias +
+      "\\s+(?:is\\s+)?(?:required|missing|provided|specified|available|given)$",
+      "i",
+    ).test(normalized) || new RegExp(
+      "^" + alias +
+      "\\s+(?:is\\s+)?(?:not\\s+provided|not\\s+specified|not\\s+available|missing)$",
+      "i",
+    ).test(normalized);
+  });
+}
 function getRequiredWorkflowFields(workflow) {
   return Array.isArray(workflow?.inputSchema?.required)
     ? workflow.inputSchema.required
@@ -434,7 +471,10 @@ class AgentRuntime {
                 currentValue === null ||
                 (typeof currentValue === "string" && !currentValue.trim());
 
-              if (isMissing) {
+              const isPlaceholder =
+                isPlaceholderWorkflowValue(currentValue, field);
+
+              if (isMissing || isPlaceholder) {
                 if (typeof value === "string" && value.trim()) {
                   data[field] = value.trim();
                 } else if (value !== undefined && value !== null) {

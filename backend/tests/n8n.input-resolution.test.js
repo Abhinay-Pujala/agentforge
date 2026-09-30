@@ -111,4 +111,56 @@ describe("n8n workflow input resolution", () => {
   });
 
 
+  it("derives a missing email subject from supplied message content", async () => {
+    const result = await n8nTriggerTool.execute(
+      {
+        workflowId: "workflow-123",
+        data: {
+          to: "user@example.com",
+          message: "I will submit the project tomorrow.",
+        },
+      },
+      {
+        userId: "user-123",
+        workerId: "worker-123",
+        executionId: "execution-456",
+        worker: { workflowIds: ["workflow-123"] },
+      },
+    );
+
+    expect(triggerN8nWorkflowMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          to: "user@example.com",
+          message: "I will submit the project tomorrow.",
+          subject: "I will submit the project tomorrow",
+        },
+      }),
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it("does not derive a subject when the email body is genuinely missing", async () => {
+    const result = await n8nTriggerTool.execute(
+      {
+        workflowId: "workflow-123",
+        data: {
+          to: "user@example.com",
+        },
+      },
+      {
+        userId: "user-123",
+        workerId: "worker-123",
+        executionId: "execution-456",
+        worker: { workflowIds: ["workflow-123"] },
+      },
+    );
+
+    expect(result.status).toBe("INPUT_REQUIRED");
+    expect(result.missingFields).toContain("message");
+    expect(result.missingFields).not.toContain("subject");
+    expect(triggerN8nWorkflowMock).not.toHaveBeenCalled();
+  });
+
+
 });

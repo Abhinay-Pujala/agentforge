@@ -117,7 +117,7 @@ describe("n8n workflow input resolution", () => {
   });
 
 
-  it("derives a missing email subject from supplied message content", async () => {
+  it("reports a missing subject instead of deriving it", async () => {
     const result = await n8nTriggerTool.execute(
       {
         workflowId: "workflow-123",
@@ -134,19 +134,12 @@ describe("n8n workflow input resolution", () => {
       },
     );
 
-    expect(triggerN8nWorkflowMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: {
-          to: "user@example.com",
-          message: "I will submit the project tomorrow.",
-          subject: "I will submit the project tomorrow",
-        },
-      }),
-    );
-    expect(result.success).toBe(true);
+    expect(result.status).toBe("INPUT_REQUIRED");
+    expect(result.missingFields).toEqual(["subject"]);
+    expect(triggerN8nWorkflowMock).not.toHaveBeenCalled();
   });
 
-  it("does not derive a subject when the email body is genuinely missing", async () => {
+  it("does not execute when the email body is genuinely missing", async () => { when the email body is genuinely missing", async () => {
     const result = await n8nTriggerTool.execute(
       {
         workflowId: "workflow-123",

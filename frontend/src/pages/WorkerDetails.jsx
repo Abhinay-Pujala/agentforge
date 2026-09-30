@@ -203,7 +203,7 @@ export default function WorkerDetails() {
       setWaitingExecution(waiting);
       setResumeInput("");
 
-      await fetchExecutions();
+      await refreshExecutions();
     } catch (err) {
       console.error("Failed to resume worker:", err);
       setExecutionError(err.response?.data?.message || err.message || "Failed to resume worker.");

@@ -234,7 +234,8 @@ export const n8nTriggerTool = {
     const placeholderFields = Object.keys(originalData).filter(
       (key) =>
         typeof originalData[key] === "string" &&
-        isPlaceholderValue(originalData[key], key),
+        isPlaceholderValue(originalData[key], key) &&
+        sanitizedData[key] === originalData[key],
     );
 
     const validation = validateToolArguments(

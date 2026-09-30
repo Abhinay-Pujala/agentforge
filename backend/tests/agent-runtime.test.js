@@ -502,3 +502,85 @@ describe("AgentRuntime tool capabilities", () => {
     ).rejects.toThrow("Calculator failed");
   });
 });
+
+
+  it("stops immediately when an email message must be explicitly provided by the user", async () => {
+    const n8nTool = {
+      name: "n8n.trigger",
+      description: "Trigger a registered n8n workflow.",
+      schema: {
+        type: "object",
+        properties: {
+          workflowId: { type: "string" },
+          data: { type: "object", additionalProperties: true },
+        },
+        required: ["workflowId", "data"],
+        additionalProperties: false,
+      },
+      execute: vi.fn(),
+    };
+
+    const toolRegistry = new ToolRegistry();
+    toolRegistry.register(n8nTool);
+
+    const modelProvider = {
+      generate: vi.fn().mockResolvedValue({
+        output: null,
+        toolCalls: [
+          {
+            id: "n8n-call-1",
+            tool: "n8n.trigger",
+            arguments: {
+              workflowId: "workflow-email",
+              data: {
+                to: "abhinay200711@gmail.com",
+                subject: "Birthday wishes",
+                message: "Happy Birthday! Wishing you a wonderful day.",
+              },
+            },
+          },
+        ],
+      }),
+    };
+
+    const runtime = new AgentRuntime(modelProvider, toolRegistry);
+
+    const result = await runtime.execute({
+      worker: {
+        model: "test-model",
+        instructions: "Use the email workflow when appropriate.",
+        enabledTools: ["n8n.trigger"],
+        configuration: {},
+      },
+      input: "Send an email to abhinay200711@gmail.com",
+      context: {
+        workflowCatalog: [
+          {
+            id: "workflow-email",
+            name: "Email Automation",
+            description: "Send an email.",
+            category: "automation",
+            inputSchema: {
+              type: "object",
+              properties: {
+                to: { type: "string" },
+                subject: { type: "string" },
+                message: { type: "string" },
+              },
+              required: ["to", "subject", "message"],
+              additionalProperties: false,
+            },
+          },
+        ],
+      },
+    });
+
+    expect(result.metadata.inputRequired).toMatchObject({
+      workflowId: "workflow-email",
+      missingFields: ["message"],
+      validationErrors: ["message must be explicitly provided by the user"],
+    });
+    expect(result.toolCalls).toHaveLength(1);
+    expect(modelProvider.generate).toHaveBeenCalledTimes(1);
+    expect(n8nTool.execute).not.toHaveBeenCalled();
+  });

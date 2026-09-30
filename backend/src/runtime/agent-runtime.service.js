@@ -173,13 +173,22 @@ class AgentRuntime {
 
     const messages = buildPrompt(worker, input, context);
 
+    const workflowIntentDetected =
+      Boolean(context.resumedFromExecutionId) ||
+      shouldAttemptWorkflow(input, context.workflowCatalog);
+
     const enabledToolNames = new Set(worker.enabledTools || []);
 
+    // Do not expose the side-effecting n8n tool to ordinary conversation.
+    // This is enforced here rather than only through prompting.
     if (
       Array.isArray(context.workflowCatalog) &&
-      context.workflowCatalog.length > 0
+      context.workflowCatalog.length > 0 &&
+      workflowIntentDetected
     ) {
       enabledToolNames.add("n8n.trigger");
+    } else {
+      enabledToolNames.delete("n8n.trigger");
     }
 
     const availableTools = this.toolRegistry.getForWorker(
@@ -195,9 +204,6 @@ class AgentRuntime {
       executionPolicy?.maxToolRounds ?? DEFAULT_MAX_TOOL_ROUNDS;
 
     let toolRounds = 0;
-    const workflowIntentDetected =
-      Boolean(context.resumedFromExecutionId) ||
-      shouldAttemptWorkflow(input, context.workflowCatalog);
     let workflowCallRequired = hasWorkflowTools && workflowIntentDetected;
     let successfulWorkflowExecution = false;
     const toolCallRecords = [];

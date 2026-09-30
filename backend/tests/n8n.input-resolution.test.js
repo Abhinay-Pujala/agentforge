@@ -20,6 +20,7 @@ describe("n8n workflow input resolution", () => {
     assertWorkflowAccessMock.mockResolvedValue({
       _id: "workflow-123",
       name: "Gmail Automation",
+      category: "email",
       status: "enabled",
       webhook: {
         provider: "n8n",

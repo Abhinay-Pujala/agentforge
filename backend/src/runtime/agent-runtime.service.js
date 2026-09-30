@@ -224,7 +224,20 @@ class AgentRuntime {
 
       const normalizedResponse = normalizeModelResponse(modelResponse);
 
-      if (normalizedResponse.toolCalls.length === 0) {
+      // A workflow execution is a single side effect. Even if a model returns
+      // multiple n8n calls in one response, execute only the first one and
+      // finalize immediately after its result.
+      const toolCallsForExecution =
+        hasWorkflowTools && workflowIntentDetected
+          ? (() => {
+              const firstWorkflowCall = normalizedResponse.toolCalls.find(
+                (call) => call.tool === "n8n.trigger",
+              );
+              return firstWorkflowCall ? [firstWorkflowCall] : [];
+            })()
+          : normalizedResponse.toolCalls;
+
+      if (toolCallsForExecution.length === 0) {
         if (inputRequired) {
           return {
             success: true,
@@ -309,7 +322,7 @@ class AgentRuntime {
       messages.push({
         role: "assistant",
         content: normalizedResponse.output,
-        tool_calls: normalizedResponse.toolCalls.map((toolCall) => ({
+        tool_calls: toolCallsForExecution.map((toolCall) => ({
           id: toolCall.id,
           type: "function",
           function: {
@@ -319,7 +332,7 @@ class AgentRuntime {
         })),
       });
 
-      for (const toolCall of normalizedResponse.toolCalls) {
+      for (const toolCall of toolCallsForExecution) {
         const workflowId = toolCall.arguments?.workflowId ?? null;
         const repeatedSuccessfulWorkflow =
           toolCall.tool === "n8n.trigger" &&
@@ -462,11 +475,6 @@ class AgentRuntime {
             workflowId && successfulWorkflowIds.has(workflowId);
 
           let toolResult;
-
-          const workflowDefinition = context.workflowCatalog?.find(
-            (workflow) =>
-              workflow.id?.toString() === workflowId?.toString(),
-          );
 
           toolResult =
             duplicateSuccessfulWorkflow || repeatedSuccessfulWorkflow

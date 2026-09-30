@@ -157,7 +157,7 @@ describe("n8n workflow input resolution", () => {
 
     expect(result.status).toBe("INPUT_REQUIRED");
     expect(result.missingFields).toContain("message");
-    expect(result.missingFields).not.toContain("subject");
+    expect(result.missingFields).toContain("subject");
     expect(triggerN8nWorkflowMock).not.toHaveBeenCalled();
   });
 

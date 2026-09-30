@@ -121,12 +121,55 @@ export const n8nTriggerTool = {
     // instead of omitting a field. Treat those exactly like missing values so
     // the workflow schema can return INPUT_REQUIRED rather than executing with
     // fake data.
-    const sanitizedData = removePlaceholderValues(toolArguments.data);
+    const originalData =
+      toolArguments.data && typeof toolArguments.data === "object"
+        ? toolArguments.data
+        : {};
+
+    const sanitizedData = removePlaceholderValues(originalData);
+
+    // Never execute a side-effect workflow when the model supplied a
+    // placeholder for a field. Even if that field is optional in the
+    // registered schema, a placeholder is not real user input.
+    const placeholderFields = Object.keys(originalData).filter(
+      (key) =>
+        typeof originalData[key] === "string" &&
+        isPlaceholderValue(originalData[key], key),
+    );
 
     const validation = validateToolArguments(
       sanitizedData,
       workflow.inputSchema,
     );
+
+    if (placeholderFields.length > 0) {
+      return {
+        status: "INPUT_REQUIRED",
+        workflowId: workflow._id.toString(),
+        workflowName: workflow.name,
+        missingFields: [
+          ...new Set([
+            ...placeholderFields,
+            ...(validation.valid
+              ? []
+              : validation.errors
+                  .filter((message) => message.endsWith(" is required"))
+                  .map((message) =>
+                    message
+                      .replace(/^arguments\./, "")
+                      .replace(/ is required$/, ""),
+                  )),
+          ]),
+        ],
+        validationErrors: validation.valid
+          ? placeholderFields.map(
+              (field) => `arguments.${field} contains a placeholder value`,
+            )
+          : validation.errors,
+        message:
+          "Additional workflow input is required before this workflow can run.",
+      };
+    }
 
     if (!validation.valid) {
       const missingFields = validation.errors

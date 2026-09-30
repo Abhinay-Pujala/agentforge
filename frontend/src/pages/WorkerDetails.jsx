@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowLeft, Bot, Calendar, Clock, Edit, Loader2, Play, Send,
   Settings2, Trash2, History, CheckCircle2, XCircle, Timer, Workflow,
@@ -83,11 +83,7 @@ export default function WorkerDetails() {
     fetchWorkerData();
   }, [id]);
 
-  useEffect(() => {
-    fetchExecutions();
-  }, [id]);
-
-  const fetchExecutions = useCallback(async () => {
+  async function fetchExecutions() {
     try {
       setIsLoadingExecutions(true);
       const result = await getExecutions({ workerId: id, limit: 10 });
@@ -119,6 +115,10 @@ export default function WorkerDetails() {
     } finally {
       setIsLoadingExecutions(false);
     }
+  }
+
+  useEffect(() => {
+    fetchExecutions();
   }, [id]);
 
   async function handleDelete() {

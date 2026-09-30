@@ -95,6 +95,76 @@ function hasExplicitFreeformInput(userInput, fieldName) {
   return Boolean(extractFreeformInput(userInput, fieldName));
 }
 
+function isEmailWorkflow(workflow) {
+  const haystack = [
+    workflow?.name,
+    workflow?.category,
+    workflow?.description,
+  ].filter(Boolean).join(" ").toLowerCase();
+
+  return /\b(email|gmail|mail)\b/i.test(haystack);
+}
+
+function deriveEmailSubject(data, workflow) {
+  if (!isEmailWorkflow(workflow)) return data;
+
+  const subject = data.subject;
+  const message = data.message ?? data.text ?? data.body ?? data.content;
+
+  if (!isPlaceholderValue(subject, "subject") && String(subject || "").trim()) {
+    return data;
+  }
+
+  if (typeof message !== "string" || !message.trim()) {
+    return data;
+  }
+
+  const firstSentence = message
+    .trim()
+    .split(/[.!?]\s+/)[0]
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!firstSentence) return data;
+
+  const words = firstSentence.split(" ").slice(0, 8);
+  const derivedSubject = words.join(" ").replace(/[.!?]+$/, "");
+
+  return {
+    ...data,
+    subject: derivedSubject || "Email",
+  };
+}
+
+function getRequiredMissingFields(errors, data, workflow) {
+  const missing = errors
+    .filter((message) => message.endsWith(" is required"))
+    .map((message) =>
+      message
+        .replace(/^arguments\./, "")
+        .replace(/ is required$/, ""),
+    );
+
+  // For email workflows the subject is derived from the message by the worker.
+  // Never ask the user for a subject when the actual message is missing too.
+  if (isEmailWorkflow(workflow)) {
+    const hasMessage = ["message", "text", "body", "content"]
+      .some((field) => {
+        const value = data?.[field];
+        return value !== undefined &&
+          value !== null &&
+          String(value).trim() &&
+          !isPlaceholderValue(value, field);
+      });
+
+    if (!hasMessage) {
+      return missing.filter((field) => field !== "subject");
+    }
+  }
+
+  return missing;
+}
+
 function extractEmails(value) {
   if (typeof value !== "string") return [];
   return value.match(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi) || [];
@@ -199,6 +269,8 @@ export const n8nTriggerTool = {
         typeof originalData[key] === "string" &&
         isPlaceholderValue(originalData[key], key),
     );
+
+    sanitizedData = deriveEmailSubject(sanitizedData, workflow);
 
     const validation = validateToolArguments(
       sanitizedData,
@@ -354,12 +426,10 @@ export const n8nTriggerTool = {
             ...placeholderFields,
             ...(validation.valid
               ? []
-              : validation.errors
-                .filter((message) => message.endsWith(" is required"))
-                .map((message) =>
-                  message
-                    .replace(/^arguments\./, "")
-                    .replace(/ is required$/, ""),
+              : getRequiredMissingFields(
+                  validation.errors,
+                  sanitizedData,
+                  workflow,
                 )),
           ]),
         ],
@@ -378,13 +448,11 @@ export const n8nTriggerTool = {
     }
 
     if (!validation.valid) {
-      const missingFields = validation.errors
-        .filter((message) => message.endsWith(" is required"))
-        .map((message) =>
-          message
-            .replace(/^arguments\./, "")
-            .replace(/ is required$/, ""),
-        );
+      const missingFields = getRequiredMissingFields(
+        validation.errors,
+        sanitizedData,
+        workflow,
+      );
 
       if (missingFields.length > 0) {
         return {

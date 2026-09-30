@@ -43,14 +43,23 @@ function inferWorkflowForInput(workflowCatalog, input) {
 }
 
 const WORKFLOW_ACTION_WORDS = new Set([
-  "send", "email", "mail", "message", "create", "add", "update", "edit",
-  "delete", "remove", "find", "lookup", "search", "fetch", "get",
-  "retrieve", "save",
+  "send", "create", "add", "update", "edit", "delete", "remove",
+  "find", "lookup", "search", "fetch", "get", "retrieve", "save",
   "store", "insert", "append", "notify", "schedule", "trigger",
   "run", "execute", "generate", "post", "publish", "upload",
   "download", "sync", "export", "import", "move", "copy", "archive",
   "assign",
 ]);
+
+function isConversationalInput(input) {
+  const normalized = String(input || "").trim().toLowerCase();
+
+  if (!normalized) return true;
+
+  return /^(?:hi|hello|hey|yo|thanks|thank you|good morning|good afternoon|good evening)[!,.\s]*$/i.test(normalized)
+    || /^(?:what can you do|what do you do|who are you|how can you help|what are your capabilities)[?!.,\s]*$/i.test(normalized)
+    || /^(?:can you|could you) (?:explain|tell me about|describe|help me understand)\b/i.test(normalized);
+}
 
 function isWorkflowPlaceholderInput(input) {
   const normalized = String(input || "")
@@ -70,7 +79,7 @@ function isWorkflowPlaceholderInput(input) {
 }
 
 function hasWorkflowIntent(input) {
-  if (isWorkflowPlaceholderInput(input)) {
+  if (isWorkflowPlaceholderInput(input) || isConversationalInput(input)) {
     return false;
   }
 

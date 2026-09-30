@@ -53,35 +53,6 @@ function isPlaceholderValue(value, fieldName = "") {
   });
 }
 
-const BODY_FIELD_ALIASES = new Set(["message", "text", "body", "content"]);
-
-const INPUT_STOP_WORDS = new Set([
-  "send", "an", "a", "the", "email", "mail", "to", "at", "please",
-  "saying", "say", "tell", "that", "about", "with", "and", "or",
-  "for", "me", "my", "i", "ill", "will", "would", "can", "could",
-  "want", "wants", "wanting", "from", "this", "is", "be", "it",
-]);
-
-function meaningfulTokens(value) {
-  return String(value || "")
-    .toLowerCase()
-    .replace(/https?:\/\/\S+/g, " ")
-    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, " ")
-    .split(/[^a-z0-9]+/)
-    .filter((token) => token.length >= 3 && !INPUT_STOP_WORDS.has(token));
-}
-
-function bodyHasUserGrounding(body, originalInput) {
-  const sourceTokens = new Set(meaningfulTokens(originalInput));
-  const bodyTokens = meaningfulTokens(body);
-
-  if (sourceTokens.size === 0 || bodyTokens.length === 0) {
-    return false;
-  }
-
-  return bodyTokens.some((token) => sourceTokens.has(token));
-}
-
 function removePlaceholderValues(value) {
   if (Array.isArray(value)) {
     return value.map(removePlaceholderValues);
@@ -166,31 +137,12 @@ export const n8nTriggerTool = {
         isPlaceholderValue(originalData[key], key),
     );
 
-    // A model may otherwise invent a perfectly valid-looking email body when
-    // the user only supplied a recipient. For side-effect workflows, require
-    // message/text/body/content to be grounded in the original user request.
-    const ungroundedBodyFields = Object.keys(originalData).filter((key) => {
-      const normalizedKey = String(key).trim().toLowerCase();
-      return (
-        BODY_FIELD_ALIASES.has(normalizedKey) &&
-        typeof originalData[key] === "string" &&
-        !bodyHasUserGrounding(
-          originalData[key],
-          context.originalUserInput || "",
-        )
-      );
-    });
-
-    const invalidInputFields = [
-      ...new Set([...placeholderFields, ...ungroundedBodyFields]),
-    ];
-
     const validation = validateToolArguments(
       sanitizedData,
       workflow.inputSchema,
     );
 
-    if (invalidInputFields.length > 0) {
+    if (placeholderFields.length > 0) {
       return {
         status: "INPUT_REQUIRED",
         workflowId: workflow._id.toString(),

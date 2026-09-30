@@ -418,8 +418,8 @@ class AgentRuntime {
             // new answer. This prevents the model from having to reproduce
             // previously resolved fields exactly.
             const data = {
-              ...pendingData,
               ...(toolCall.arguments?.data || {}),
+              ...pendingData,
             };
 
             for (const [field, value] of Object.entries(explicitInput)) {

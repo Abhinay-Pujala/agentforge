@@ -25,7 +25,7 @@ export async function getWorkerExecutionContext(firebaseUid, workerId) {
     throw error;
   }
 
-  if (worker.status !== "enabled") {
+  if (worker.status === "disabled") {
     const error = new Error("Worker is disabled.");
     error.code = "WORKER_DISABLED";
     error.statusCode = 403;

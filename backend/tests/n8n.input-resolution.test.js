@@ -157,9 +157,16 @@ describe("n8n workflow input resolution", () => {
       },
     );
 
-    expect(result.status).toBe("INPUT_REQUIRED");
-    expect(result.missingFields).toEqual(["subject"]);
-    expect(triggerN8nWorkflowMock).toHaveBeenCalled();
+    expect(result.success).toBe(true);
+    expect(triggerN8nWorkflowMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          to: "user@example.com",
+          message: "I will submit the project tomorrow.",
+          subject: expect.any(String),
+        }),
+      }),
+    );
   });
 
   it("does not execute when the email body is genuinely missing", async () => {

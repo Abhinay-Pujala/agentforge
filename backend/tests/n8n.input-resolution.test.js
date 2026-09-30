@@ -86,4 +86,63 @@ describe("n8n workflow input resolution", () => {
       code: "N8N_WORKFLOW_INPUT_INVALID",
     });
   });
+
+  it("accepts resumed message content when it is grounded in the original request plus HITL reply", async () => {
+    triggerN8nWorkflowMock.mockResolvedValue({
+      success: true,
+      status: "SENT",
+      message: "Email sent successfully",
+    });
+
+    const result = await n8nTriggerTool.execute(
+      {
+        workflowId: "workflow-123",
+        data: {
+          to: "abhinay200711@gmail.com",
+          subject: "Birthday Wishes",
+          message: "Wishing you a very happy birthday!",
+        },
+      },
+      {
+        userId: "user-123",
+        workerId: "worker-123",
+        executionId: "execution-456",
+        worker: { workflowIds: ["workflow-123"] },
+        originalUserInput:
+          "Send an email to abhinay200711@gmail.com\nBirthday wishes",
+      },
+    );
+
+    expect(result).toMatchObject({
+      success: true,
+      status: "SENT",
+    });
+    expect(triggerN8nWorkflowMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not accept invented message content when the original request has no message", async () => {
+    const result = await n8nTriggerTool.execute(
+      {
+        workflowId: "workflow-123",
+        data: {
+          to: "abhinay200711@gmail.com",
+          subject: "Birthday Wishes",
+          message: "Wishing you a very happy birthday!",
+        },
+      },
+      {
+        userId: "user-123",
+        workerId: "worker-123",
+        executionId: "execution-456",
+        worker: { workflowIds: ["workflow-123"] },
+        originalUserInput:
+          "Send an email to abhinay200711@gmail.com",
+      },
+    );
+
+    expect(result.status).toBe("INPUT_REQUIRED");
+    expect(result.missingFields).toContain("message");
+    expect(triggerN8nWorkflowMock).not.toHaveBeenCalled();
+  });
+
 });

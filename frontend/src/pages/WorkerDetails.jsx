@@ -83,42 +83,51 @@ export default function WorkerDetails() {
     fetchWorkerData();
   }, [id]);
 
-  async function fetchExecutions() {
-    try {
-      setIsLoadingExecutions(true);
-      const result = await getExecutions({ workerId: id, limit: 10 });
-      const nextExecutions = result.executions || [];
-      setExecutions(nextExecutions);
-
-      // Recover the waiting state from persisted execution status even if
-      // the run API response did not expose inputRequired metadata.
-      const waiting = nextExecutions.find(
-        (execution) => execution.status === "WAITING_FOR_INPUT",
-      );
-
-      if (waiting) {
-        setWaitingExecution((current) => ({
-          executionId: waiting._id,
-          missingFields: current?.executionId === waiting._id
-            ? current.missingFields || []
-            : [],
-          workflowName: current?.executionId === waiting._id
-            ? current.workflowName || null
-            : null,
-        }));
-      } else {
-        // Clear stale HITL state after a successful resume.
-        setWaitingExecution(null);
-      }
-    } catch (err) {
-      console.error("Failed to fetch execution history:", err);
-    } finally {
-      setIsLoadingExecutions(false);
-    }
-  }
-
   useEffect(() => {
-    fetchExecutions();
+    let active = true;
+
+    async function loadExecutions() {
+      try {
+        setIsLoadingExecutions(true);
+        const result = await getExecutions({ workerId: id, limit: 10 });
+        if (!active) return;
+
+        const nextExecutions = result.executions || [];
+        setExecutions(nextExecutions);
+
+        const waiting = nextExecutions.find(
+          (execution) => execution.status === "WAITING_FOR_INPUT",
+        );
+
+        if (waiting) {
+          setWaitingExecution((current) => ({
+            executionId: waiting._id,
+            missingFields:
+              current?.executionId === waiting._id
+                ? current.missingFields || []
+                : [],
+            workflowName:
+              current?.executionId === waiting._id
+                ? current.workflowName || null
+                : null,
+          }));
+        } else {
+          setWaitingExecution(null);
+        }
+      } catch (err) {
+        if (active) {
+          console.error("Failed to fetch execution history:", err);
+        }
+      } finally {
+        if (active) setIsLoadingExecutions(false);
+      }
+    }
+
+    loadExecutions();
+
+    return () => {
+      active = false;
+    };
   }, [id]);
 
   async function handleDelete() {

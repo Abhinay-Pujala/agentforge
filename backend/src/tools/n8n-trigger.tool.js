@@ -219,23 +219,29 @@ export const n8nTriggerTool = {
         ? context.explicitUserInput
         : context.originalUserInput;
 
-    const missingUserProvidedFields = requiredFields.filter((field) => {
-      if (!["message", "text", "body", "content"].includes(
-        String(field).toLowerCase(),
-      )) {
-        return false;
-      }
+    const hasGroundingContext =
+      typeof userInputForGrounding === "string" &&
+      userInputForGrounding.trim().length > 0;
 
-      const explicitlyResumed =
-        explicitWorkflowInput[field] !== undefined &&
-        explicitWorkflowInput[field] !== null &&
-        String(explicitWorkflowInput[field]).trim();
+    const missingUserProvidedFields = hasGroundingContext
+      ? requiredFields.filter((field) => {
+          if (!["message", "text", "body", "content"].includes(
+            String(field).toLowerCase(),
+          )) {
+            return false;
+          }
 
-      return (
-        !explicitlyResumed &&
-        !hasExplicitFreeformInput(userInputForGrounding, field)
-      );
-    });
+          const explicitlyResumed =
+            explicitWorkflowInput[field] !== undefined &&
+            explicitWorkflowInput[field] !== null &&
+            String(explicitWorkflowInput[field]).trim();
+
+          return (
+            !explicitlyResumed &&
+            !hasExplicitFreeformInput(userInputForGrounding, field)
+          );
+        })
+      : [];
 
     if (missingUserProvidedFields.length > 0) {
       return {

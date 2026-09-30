@@ -71,8 +71,8 @@ const GENERIC_WORKFLOW_TOKENS = new Set([
 function tokenize(value) {
   return String(value || "")
     .toLowerCase()
-    .replace(/https?:\\/\\/\\S+/g, " ")
-    .replace(/\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b/gi, " ")
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, " ")
     .split(/[^a-z0-9]+/)
     .filter(
       (token) =>

@@ -4,7 +4,7 @@ import Footer from "../components/home/Footer";
 import Hero from "../components/home/Hero";
 import HowItWorksSection from "../components/home/HowItWorksSection";
 import IntroSection from "../components/home/IntroSection";
-import Navbar from "../components/home/NavBar";
+import Navbar from "../components/home/Navbar";
 import WhyAgentForgeSection from "../components/home/WhyAgentForgeSection";
 
 export default function Home() {

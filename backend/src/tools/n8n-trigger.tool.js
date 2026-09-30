@@ -243,10 +243,6 @@ export const n8nTriggerTool = {
       workflow.inputSchema,
     );
 
-    const requiredFields = Array.isArray(workflow.inputSchema?.required)
-      ? workflow.inputSchema.required
-      : [];
-
     // Do not let the model invent a required free-form value such as an
     // email body when the user never supplied one. The model may still
     // polish/rewrite a body that the user actually provided.

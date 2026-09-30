@@ -53,27 +53,30 @@ function isPlaceholderValue(value, fieldName = "") {
   });
 }
 
-function hasExplicitFreeformInput(userInput, fieldName) {
+function extractFreeformInput(userInput, fieldName) {
   if (typeof userInput !== "string" || !userInput.trim()) {
-    return false;
+    return null;
+  }
+
+  const field = String(fieldName || "").toLowerCase();
+  if (!["message", "text", "body", "content", "description"].includes(field)) {
+    return null;
   }
 
   const normalized = userInput.trim();
-  const field = String(fieldName || "").toLowerCase();
 
-  if (!["message", "text", "body", "content", "description"].includes(field)) {
-    return true;
+  const cueMatch = normalized.match(
+    /(?:saying|message|body|content|write|tell|say)\s*[:,-]?\s*(.+)$/i,
+  );
+
+  if (cueMatch?.[1]?.trim()) {
+    return cueMatch[1].trim();
   }
 
-  // A free-form field is considered user-supplied when the original request
-  // contains an explicit content cue, or contains meaningful text after a
-  // recipient/address. Do not allow the model to invent a message merely
-  // because the schema requires one.
-  if (/(?:saying|message|body|content|write|tell|say|that)\s*[:,-]?\s*\S+/i.test(normalized)) {
-    return true;
-  }
+  const emailMatch = normalized.match(
+    /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
+  );
 
-  const emailMatch = normalized.match(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i);
   if (emailMatch) {
     const trailing = normalized
       .slice(emailMatch.index + emailMatch[0].length)
@@ -81,11 +84,15 @@ function hasExplicitFreeformInput(userInput, fieldName) {
       .trim();
 
     if (trailing) {
-      return true;
+      return trailing;
     }
   }
 
-  return false;
+  return null;
+}
+
+function hasExplicitFreeformInput(userInput, fieldName) {
+  return Boolean(extractFreeformInput(userInput, fieldName));
 }
 
 function extractEmails(value) {
@@ -212,10 +219,22 @@ export const n8nTriggerTool = {
         ? context.explicitWorkflowInput
         : {};
 
-    const userInput =
-      typeof context.explicitUserInput === "string" && context.explicitUserInput.trim()
-        ? context.explicitUserInput
-        : context.originalUserInput;
+    // Keep both the original request and the latest resume answer.
+    // Resume input must not erase information already supplied by the user.
+    const originalUserInput =
+      typeof context.originalUserInput === "string"
+        ? context.originalUserInput.trim()
+        : "";
+
+    const explicitUserInput =
+      typeof context.explicitUserInput === "string"
+        ? context.explicitUserInput.trim()
+        : "";
+
+    const userInput = [originalUserInput, explicitUserInput]
+      .filter(Boolean)
+      .join(" ");
+
 
     const missingUserFreeformFields = requiredFields.filter((field) => {
       const normalizedField = String(field).toLowerCase();
@@ -236,6 +255,30 @@ export const n8nTriggerTool = {
 
       return !hasExplicitFreeformInput(userInput, field);
     });
+
+    // Preserve content from the original request when the current
+    // resume answer only supplies another field such as the recipient.
+    for (const field of requiredFields) {
+      const normalizedField = String(field).toLowerCase();
+      if (!["message", "text", "body", "content", "description"].includes(normalizedField)) {
+        continue;
+      }
+
+      const existing = sanitizedData[field];
+      if (
+        existing !== undefined &&
+        existing !== null &&
+        String(existing).trim() &&
+        !isPlaceholderValue(existing, field)
+      ) {
+        continue;
+      }
+
+      const extracted = extractFreeformInput(originalUserInput, field);
+      if (extracted && !isPlaceholderValue(extracted, field)) {
+        sanitizedData[field] = extracted;
+      }
+    }
 
     const explicitUserEmails = new Set([
       ...extractEmails(userInput),

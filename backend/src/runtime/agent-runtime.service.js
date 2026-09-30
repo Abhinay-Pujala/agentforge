@@ -379,6 +379,38 @@ class AgentRuntime {
           const workflowExecutionKey = getWorkflowExecutionKey(toolCall);
           const workflowId = toolCall.arguments?.workflowId ?? null;
 
+          // When resuming a WAITING_FOR_INPUT execution, the server passes the
+          // user's new value explicitly through context. Merge that value into
+          // missing workflow fields before validation so the model does not
+          // have to reproduce the exact wording in a tool call.
+          if (
+            toolCall.tool === "n8n.trigger" &&
+            context.explicitWorkflowInput &&
+            typeof context.explicitWorkflowInput === "object"
+          ) {
+            const explicitInput = context.explicitWorkflowInput;
+            const data = {
+              ...(toolCall.arguments?.data || {}),
+            };
+
+            for (const [field, value] of Object.entries(explicitInput)) {
+              if (
+                (data[field] === undefined ||
+                  data[field] === null ||
+                  data[field] === "") &&
+                typeof value === "string" &&
+                value.trim()
+              ) {
+                data[field] = value.trim();
+              }
+            }
+
+            toolCall.arguments = {
+              ...toolCall.arguments,
+              data,
+            };
+          }
+
           // A successful registered workflow is a completed side effect for
           // this execution. Do not let the model repeatedly trigger the same
           // workflow with slightly different arguments and exhaust the round

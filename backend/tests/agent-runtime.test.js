@@ -504,7 +504,7 @@ describe("AgentRuntime tool capabilities", () => {
 });
 
 
-  it("accepts a model-polished email body when the user explicitly provided the message", async () => {
+  it("executes the single registered workflow once and accepts a polished email body", async () => {
     const n8nTool = {
       name: "n8n.trigger",
       description: "Trigger a registered n8n workflow.",
@@ -590,11 +590,12 @@ describe("AgentRuntime tool capabilities", () => {
 
     expect(result.output).toBe("Email sent successfully.");
     expect(result.metadata.inputRequired).toBeUndefined();
+    expect(result.toolCalls).toHaveLength(1);
     expect(n8nTool.execute).toHaveBeenCalledTimes(1);
     expect(modelProvider.generate).toHaveBeenCalledTimes(2);
   });
 
-  it("stops immediately when an email message must be explicitly provided by the user", async () => {
+  it("pauses immediately when the single workflow has missing required input", async () => {
     const n8nTool = {
       name: "n8n.trigger",
       description: "Trigger a registered n8n workflow.",
@@ -607,7 +608,14 @@ describe("AgentRuntime tool capabilities", () => {
         required: ["workflowId", "data"],
         additionalProperties: false,
       },
-      execute: vi.fn(),
+      execute: vi.fn().mockResolvedValue({
+        status: "INPUT_REQUIRED",
+        workflowId: "workflow-email",
+        workflowName: "Email Automation",
+        missingFields: ["message"],
+        validationErrors: ["arguments.message is required"],
+        message: "Additional workflow input is required before this workflow can run.",
+      }),
     };
 
     const toolRegistry = new ToolRegistry();
@@ -624,8 +632,7 @@ describe("AgentRuntime tool capabilities", () => {
               workflowId: "workflow-email",
               data: {
                 to: "abhinay200711@gmail.com",
-                subject: "Birthday wishes",
-                message: "Happy Birthday! Wishing you a wonderful day.",
+                subject: "Project Update",
               },
             },
           },
@@ -668,9 +675,10 @@ describe("AgentRuntime tool capabilities", () => {
     expect(result.metadata.inputRequired).toMatchObject({
       workflowId: "workflow-email",
       missingFields: ["message"],
-      validationErrors: ["message must be explicitly provided by the user"],
+      validationErrors: ["arguments.message is required"],
     });
     expect(result.toolCalls).toHaveLength(1);
     expect(modelProvider.generate).toHaveBeenCalledTimes(1);
-    expect(n8nTool.execute).not.toHaveBeenCalled();
+    expect(n8nTool.execute).toHaveBeenCalledTimes(1);
   });
+});

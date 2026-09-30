@@ -64,15 +64,31 @@ export default function WorkerDetails() {
       try {
         setLoading(true);
         setError("");
-        const [workerResult, workflowResult] = await Promise.all([
+        const [workerResult, workflowResult, executionResult] = await Promise.all([
           getWorkerById(id),
           getWorkflows(),
+          getExecutions({ workerId: id, limit: 10 }),
         ]);
         setWorker(workerResult);
         const availableWorkflows = Array.isArray(workflowResult)
           ? workflowResult
           : workflowResult?.workflows || workflowResult?.data?.workflows || workflowResult?.data || [];
         setWorkflows(availableWorkflows);
+
+        const nextExecutions = executionResult?.executions || [];
+        setExecutions(nextExecutions);
+
+        const waiting = nextExecutions.find(
+          (execution) => execution.status === "WAITING_FOR_INPUT",
+        );
+
+        if (waiting) {
+          setWaitingExecution({
+            executionId: waiting._id,
+            missingFields: [],
+            workflowName: null,
+          });
+        }
       } catch (err) {
         console.error("Failed to fetch worker data:", err);
         setError(err.response?.data?.message || err.message || "Failed to load worker.");
@@ -84,93 +100,37 @@ export default function WorkerDetails() {
   }, [id]);
 
   async function refreshExecutions() {
-      try {
-        setIsLoadingExecutions(true);
-        const result = await getExecutions({ workerId: id, limit: 10 });
-            const nextExecutions = result.executions || [];
-        setExecutions(nextExecutions);
+    try {
+      setIsLoadingExecutions(true);
+      const result = await getExecutions({ workerId: id, limit: 10 });
+      const nextExecutions = result.executions || [];
+      setExecutions(nextExecutions);
 
-        const waiting = nextExecutions.find(
-          (execution) => execution.status === "WAITING_FOR_INPUT",
-        );
+      const waiting = nextExecutions.find(
+        (execution) => execution.status === "WAITING_FOR_INPUT",
+      );
 
-        if (waiting) {
-          setWaitingExecution((current) => ({
-            executionId: waiting._id,
-            missingFields:
-              current?.executionId === waiting._id
-                ? current.missingFields || []
-                : [],
-            workflowName:
-              current?.executionId === waiting._id
-                ? current.workflowName || null
-                : null,
-          }));
-        } else {
-          setWaitingExecution(null);
-        }
-      } catch (err) {
-        console.error("Failed to fetch execution history:", err);
-      } finally {
+      if (waiting) {
+        setWaitingExecution((current) => ({
+          executionId: waiting._id,
+          missingFields:
+            current?.executionId === waiting._id
+              ? current.missingFields || []
+              : [],
+          workflowName:
+            current?.executionId === waiting._id
+              ? current.workflowName || null
+              : null,
+        }));
+      } else {
+        setWaitingExecution(null);
+      }
+    } catch (err) {
+      console.error("Failed to fetch execution history:", err);
+    } finally {
       setIsLoadingExecutions(false);
     }
   }
-
-  useEffect(() => {
-    let active = true;
-
-
-
-    loadExecutions();
-
-    return () => {
-      active = false;
-    };
-  }, [id]);
-  useEffect(() => {
-    let active = true;
-
-    async function loadExecutions() {
-      try {
-        setIsLoadingExecutions(true);
-        const result = await getExecutions({ workerId: id, limit: 10 });
-        if (!active) return;
-
-        const nextExecutions = result.executions || [];
-        setExecutions(nextExecutions);
-
-        const waiting = nextExecutions.find(
-          (execution) => execution.status === "WAITING_FOR_INPUT",
-        );
-
-        if (waiting) {
-          setWaitingExecution((current) => ({
-            executionId: waiting._id,
-            missingFields:
-              current?.executionId === waiting._id
-                ? current.missingFields || []
-                : [],
-            workflowName:
-              current?.executionId === waiting._id
-                ? current.workflowName || null
-                : null,
-          }));
-        } else {
-          setWaitingExecution(null);
-        }
-      } catch (err) {
-        if (active) console.error("Failed to fetch execution history:", err);
-      } finally {
-        if (active) setIsLoadingExecutions(false);
-      }
-    }
-
-    loadExecutions();
-
-    return () => {
-      active = false;
-    };
-  }, [id]);
 
   async function handleDelete() {
     const confirmed = window.confirm(`Are you sure you want to delete "${worker.name}"? This action cannot be undone.`);

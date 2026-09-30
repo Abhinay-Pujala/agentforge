@@ -83,10 +83,7 @@ export default function WorkerDetails() {
     fetchWorkerData();
   }, [id]);
 
-  useEffect(() => {
-    let active = true;
-
-    async function loadExecutions() {
+  async function refreshExecutions() {
       try {
         setIsLoadingExecutions(true);
         const result = await getExecutions({ workerId: id, limit: 10 });
@@ -121,9 +118,14 @@ export default function WorkerDetails() {
       } finally {
         if (active) setIsLoadingExecutions(false);
       }
-    }
+  }
 
-    loadExecutions();
+  useEffect(() => {
+    let active = true;
+
+
+
+    refreshExecutions();
 
     return () => {
       active = false;
@@ -166,7 +168,7 @@ export default function WorkerDetails() {
         setWaitingExecution(waiting);
       }
 
-      await fetchExecutions();
+      await refreshExecutions();
     } catch (err) {
       console.error("Failed to run worker:", err);
       setExecutionError(err.response?.data?.message || err.message || "Failed to run worker.");

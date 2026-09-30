@@ -199,6 +199,7 @@ class AgentRuntime {
     let workflowToolRetryUsed = false;
     let workflowCompletionRetryUsed = false;
     let inputRecoveryAttempts = 0;
+    let resumedInputRecoveryUsed = false;
     const workflowIntentDetected = shouldAttemptWorkflow(
       input,
       context.workflowCatalog,
@@ -545,10 +546,38 @@ class AgentRuntime {
           if (toolResult?.status === "INPUT_REQUIRED") {
             inputRecoveryAttempts += 1;
 
+            const resumedFields = Object.keys(
+              context.explicitWorkflowInput || {},
+            );
+            const unresolvedFields = toolResult.missingFields || [];
+            const canAutoRecoverResume =
+              resumedFields.length > 0 &&
+              !resumedInputRecoveryUsed &&
+              unresolvedFields.some((field) =>
+                resumedFields.includes(field),
+              );
+
+            if (canAutoRecoverResume) {
+              resumedInputRecoveryUsed = true;
+              workflowCallRequired = true;
+
+              // The user already supplied this value in the current resume
+              // request. Do not ask for it again. Give the model one
+              // deterministic continuation opportunity with the exact
+              // missing field/value available in context.
+              messages.push({
+                role: "system",
+                content:
+                  "The user has already supplied the missing workflow information in this resume request. Do not ask for it again. Call n8n.trigger now and use the explicit resumed value for the missing field. Preserve all previously resolved workflow data and do not invent placeholders.",
+              });
+
+              continue;
+            }
+
             inputRequired = {
               workflowId: toolResult.workflowId,
               workflowName: toolResult.workflowName,
-              missingFields: toolResult.missingFields || [],
+              missingFields: unresolvedFields,
               validationErrors: toolResult.validationErrors || [],
             };
           }

@@ -53,6 +53,41 @@ function isPlaceholderValue(value, fieldName = "") {
   });
 }
 
+function hasExplicitFreeformInput(userInput, fieldName) {
+  if (typeof userInput !== "string" || !userInput.trim()) {
+    return false;
+  }
+
+  const normalized = userInput.trim();
+  const field = String(fieldName || "").toLowerCase();
+
+  if (!["message", "text", "body", "content", "description"].includes(field)) {
+    return true;
+  }
+
+  // A free-form field is considered user-supplied when the original request
+  // contains an explicit content cue, or contains meaningful text after a
+  // recipient/address. Do not allow the model to invent a message merely
+  // because the schema requires one.
+  if (/(?:saying|message|body|content|write|tell|say|that)\s*[:,-]?\s*\S+/i.test(normalized)) {
+    return true;
+  }
+
+  const emailMatch = normalized.match(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i);
+  if (emailMatch) {
+    const trailing = normalized
+      .slice(emailMatch.index + emailMatch[0].length)
+      .replace(/^[\s,;:.-]+/, "")
+      .trim();
+
+    if (trailing) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function removePlaceholderValues(value) {
   if (Array.isArray(value)) {
     return value.map(removePlaceholderValues);
@@ -141,6 +176,59 @@ export const n8nTriggerTool = {
       sanitizedData,
       workflow.inputSchema,
     );
+
+    // Required free-form fields must originate from the user (or from an
+    // explicit resume answer). The worker may improve/rewrite that content,
+    // but it must not invent an email body/message simply to satisfy schema
+    // validation.
+    const requiredFields = Array.isArray(workflow.inputSchema?.required)
+      ? workflow.inputSchema.required
+      : [];
+
+    const explicitWorkflowInput =
+      context.explicitWorkflowInput &&
+      typeof context.explicitWorkflowInput === "object"
+        ? context.explicitWorkflowInput
+        : {};
+
+    const userInput =
+      typeof context.explicitUserInput === "string" && context.explicitUserInput.trim()
+        ? context.explicitUserInput
+        : context.originalUserInput;
+
+    const missingUserFreeformFields = requiredFields.filter((field) => {
+      const normalizedField = String(field).toLowerCase();
+
+      if (!["message", "text", "body", "content", "description"].includes(normalizedField)) {
+        return false;
+      }
+
+      const resumedValue = explicitWorkflowInput[field];
+      if (
+        resumedValue !== undefined &&
+        resumedValue !== null &&
+        String(resumedValue).trim() &&
+        !isPlaceholderValue(resumedValue, field)
+      ) {
+        return false;
+      }
+
+      return !hasExplicitFreeformInput(userInput, field);
+    });
+
+    if (missingUserFreeformFields.length > 0) {
+      return {
+        status: "INPUT_REQUIRED",
+        workflowId: workflow._id.toString(),
+        workflowName: workflow.name,
+        missingFields: missingUserFreeformFields,
+        validationErrors: missingUserFreeformFields.map(
+          (field) => `arguments.${field} must be supplied by the user`,
+        ),
+        message:
+          "Additional workflow input is required before this workflow can run.",
+      };
+    }
 
     if (placeholderFields.length > 0) {
       return {

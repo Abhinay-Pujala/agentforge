@@ -56,6 +56,11 @@ describe("AgentForge → n8n integration", () => {
           output: "Workflow completed successfully.",
           toolCalls: [],
           metadata: { usage: { total_tokens: 10, cost: 0.001 } },
+        })
+        .mockResolvedValueOnce({
+          output: "Workflow completed successfully.",
+          toolCalls: [],
+          metadata: { usage: { total_tokens: 10, cost: 0.001 } },
         }),
     };
 

@@ -403,13 +403,15 @@ class AgentRuntime {
             !repeatedSuccessfulWorkflow &&
             workflowDefinition?.inputSchema?.required?.includes("message");
 
+          const suppliedMessage =
+            typeof toolCall.arguments?.data?.message === "string"
+              ? toolCall.arguments.data.message.trim()
+              : "";
+
           const inventedEmailMessage =
             workflowRequiresUserMessage &&
-            String(toolCall.arguments?.data?.message || "").trim() &&
-            !isLikelyUserProvidedMessage(
-              toolCall.arguments.data.message,
-              input,
-            );
+            suppliedMessage &&
+            !isLikelyUserProvidedMessage(suppliedMessage, input);
 
           if (inventedEmailMessage) {
             toolResult = {

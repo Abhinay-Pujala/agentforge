@@ -53,113 +53,6 @@ function isPlaceholderValue(value, fieldName = "") {
   });
 }
 
-function hasExplicitFreeformInput(userInput, fieldName) {
-  if (typeof userInput !== "string" || !userInput.trim()) {
-    return false;
-  }
-
-  const field = String(fieldName || "")
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replace(/[_-]+/g, " ")
-    .trim()
-    .toLowerCase();
-
-  const isMessageField = ["message", "text", "body", "content"].includes(field);
-  if (!isMessageField) {
-    return true;
-  }
-
-  // Explicit phrases make it clear that the user supplied email content.
-  if (
-    /\b(?:saying|say|message|body|content|tell(?: them)?|write|that says)\b/i.test(
-      userInput,
-    )
-  ) {
-    return true;
-  }
-
-  // Also accept natural language where content follows the recipient directly,
-  // e.g. "Send an email to user@example.com for tomorrow's meeting."
-  const emailMatch = userInput.match(
-    /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i,
-  );
-
-  if (emailMatch?.index !== undefined) {
-    const trailingText = userInput
-      .slice(emailMatch.index + emailMatch[0].length)
-      .replace(/^[\s,:;-]+/, "")
-      .replace(/[.!?]+$/, "")
-      .trim();
-
-    return trailingText.length > 0;
-  }
-
-  return false;
-}
-
-function deriveEmailSubject(data, requiredFields, workflow) {
-  const workflowText = `${workflow?.name || ""} ${workflow?.category || ""}`.toLowerCase();
-  const isEmailWorkflow = /email|gmail|mail/.test(workflowText);
-
-  if (
-    !isEmailWorkflow ||
-    !Array.isArray(requiredFields) ||
-    !requiredFields.includes("subject")
-  ) {
-    return data;
-  }
-
-  if (typeof data.subject === "string" && data.subject.trim()) {
-    return data;
-  }
-
-  const bodyField = ["message", "text", "body", "content"].find(
-    (field) => typeof data[field] === "string" && data[field].trim(),
-  );
-
-  if (!bodyField) {
-    return data;
-  }
-
-  const body = data[bodyField].trim().replace(/\s+/g, " ");
-  const firstSentence = body.split(/[.!?]/)[0].trim();
-  const source = firstSentence || body;
-  const words = source.split(" ").filter(Boolean).slice(0, 8);
-
-  if (words.length === 0) {
-    return data;
-  }
-
-  const subject = words.join(" ").replace(/[,;:]+$/, "");
-  return {
-    ...data,
-    subject: subject.length > 80 ? subject.slice(0, 77).trimEnd() + "..." : subject,
-  };
-}
-
-function getActionableMissingFields(validationErrors, data) {
-  const missingFields = validationErrors
-    .filter((message) => message.endsWith(" is required"))
-    .map((message) =>
-      message
-        .replace(/^arguments\./, "")
-        .replace(/ is required$/, ""),
-    );
-
-  // For email workflows, subject is derived from the body. If both are
-  // missing, ask only for the body instead of making the user provide a
-  // second value that the worker can generate itself.
-  const bodyFieldMissing = ["message", "text", "body", "content"].some(
-    (field) => missingFields.includes(field),
-  );
-
-  if (bodyFieldMissing) {
-    return missingFields.filter((field) => field !== "subject");
-  }
-
-  return missingFields;
-}
-
 function removePlaceholderValues(value) {
   if (Array.isArray(value)) {
     return value.map(removePlaceholderValues);
@@ -235,14 +128,6 @@ export const n8nTriggerTool = {
 
     let sanitizedData = removePlaceholderValues(originalData);
 
-    // Email subjects are derived from the user-provided message when the
-    // model omits one. This prevents the HITL flow from asking the user for a
-    // value the worker is explicitly responsible for generating.
-    const requiredFields = Array.isArray(workflow.inputSchema?.required)
-      ? workflow.inputSchema.required
-      : [];
-    sanitizedData = deriveEmailSubject(sanitizedData, requiredFields, workflow);
-
     // Never execute a side-effect workflow when the model supplied a
     // placeholder for a field. Even if that field is optional in the
     // registered schema, a placeholder is not real user input.
@@ -258,58 +143,6 @@ export const n8nTriggerTool = {
       workflow.inputSchema,
     );
 
-    // Do not let the model invent a required free-form value such as an
-    // email body when the user never supplied one. The model may still
-    // polish/rewrite a body that the user actually provided.
-    const explicitWorkflowInput =
-      context.explicitWorkflowInput &&
-      typeof context.explicitWorkflowInput === "object"
-        ? context.explicitWorkflowInput
-        : {};
-
-    const userInputForGrounding =
-      typeof context.explicitUserInput === "string" && context.explicitUserInput.trim()
-        ? context.explicitUserInput
-        : context.originalUserInput;
-
-    const hasGroundingContext =
-      typeof userInputForGrounding === "string" &&
-      userInputForGrounding.trim().length > 0;
-
-    const missingUserProvidedFields = hasGroundingContext
-      ? requiredFields.filter((field) => {
-          if (!["message", "text", "body", "content"].includes(
-            String(field).toLowerCase(),
-          )) {
-            return false;
-          }
-
-          const explicitlyResumed =
-            explicitWorkflowInput[field] !== undefined &&
-            explicitWorkflowInput[field] !== null &&
-            String(explicitWorkflowInput[field]).trim();
-
-          return (
-            !explicitlyResumed &&
-            !hasExplicitFreeformInput(userInputForGrounding, field)
-          );
-        })
-      : [];
-
-    if (missingUserProvidedFields.length > 0) {
-      return {
-        status: "INPUT_REQUIRED",
-        workflowId: workflow._id.toString(),
-        workflowName: workflow.name,
-        missingFields: missingUserProvidedFields,
-        validationErrors: missingUserProvidedFields.map(
-          (field) => `arguments.${field} must be supplied by the user`,
-        ),
-        message:
-          "Additional workflow input is required before this workflow can run.",
-      };
-    }
-
     if (placeholderFields.length > 0) {
       return {
         status: "INPUT_REQUIRED",
@@ -320,7 +153,13 @@ export const n8nTriggerTool = {
             ...placeholderFields,
             ...(validation.valid
               ? []
-              : getActionableMissingFields(validation.errors, sanitizedData)),
+              : validation.errors
+                .filter((message) => message.endsWith(" is required"))
+                .map((message) =>
+                  message
+                    .replace(/^arguments\./, "")
+                    .replace(/ is required$/, ""),
+                )),
           ]),
         ],
         validationErrors: validation.valid
@@ -338,10 +177,13 @@ export const n8nTriggerTool = {
     }
 
     if (!validation.valid) {
-      const missingFields = getActionableMissingFields(
-        validation.errors,
-        sanitizedData,
-      );
+      const missingFields = validation.errors
+        .filter((message) => message.endsWith(" is required"))
+        .map((message) =>
+          message
+            .replace(/^arguments\./, "")
+            .replace(/ is required$/, ""),
+        );
 
       if (missingFields.length > 0) {
         return {

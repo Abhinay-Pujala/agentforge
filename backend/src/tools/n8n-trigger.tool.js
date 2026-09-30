@@ -112,6 +112,39 @@ function hasExplicitFreeformInput(userInput, fieldName) {
   return false;
 }
 
+function deriveEmailSubject(data, requiredFields) {
+  if (!Array.isArray(requiredFields) || !requiredFields.includes("subject")) {
+    return data;
+  }
+
+  if (typeof data.subject === "string" && data.subject.trim()) {
+    return data;
+  }
+
+  const bodyField = ["message", "text", "body", "content"].find(
+    (field) => typeof data[field] === "string" && data[field].trim(),
+  );
+
+  if (!bodyField) {
+    return data;
+  }
+
+  const body = data[bodyField].trim().replace(/\s+/g, " ");
+  const firstSentence = body.split(/[.!?]/)[0].trim();
+  const source = firstSentence || body;
+  const words = source.split(" ").filter(Boolean).slice(0, 8);
+
+  if (words.length === 0) {
+    return data;
+  }
+
+  const subject = words.join(" ").replace(/[,;:]+$/, "");
+  return {
+    ...data,
+    subject: subject.length > 80 ? subject.slice(0, 77).trimEnd() + "..." : subject,
+  };
+}
+
 function removePlaceholderValues(value) {
   if (Array.isArray(value)) {
     return value.map(removePlaceholderValues);
@@ -185,7 +218,15 @@ export const n8nTriggerTool = {
         ? toolArguments.data
         : {};
 
-    const sanitizedData = removePlaceholderValues(originalData);
+    let sanitizedData = removePlaceholderValues(originalData);
+
+    // Email subjects are derived from the user-provided message when the
+    // model omits one. This prevents the HITL flow from asking the user for a
+    // value the worker is explicitly responsible for generating.
+    const requiredFields = Array.isArray(workflow.inputSchema?.required)
+      ? workflow.inputSchema.required
+      : [];
+    sanitizedData = deriveEmailSubject(sanitizedData, requiredFields);
 
     // Never execute a side-effect workflow when the model supplied a
     // placeholder for a field. Even if that field is optional in the

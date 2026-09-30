@@ -57,6 +57,16 @@ function hasWorkflowIntent(input) {
 }
 
 function shouldAttemptWorkflow(input, workflowCatalog) {
+  if (!Array.isArray(workflowCatalog) || workflowCatalog.length === 0) {
+    return false;
+  }
+
+  // A worker configured with exactly one workflow is deterministic: that
+  // workflow is the only action this worker can perform for the request.
+  if (workflowCatalog.length === 1) {
+    return true;
+  }
+
   if (!hasWorkflowIntent(input)) {
     return false;
   }
@@ -70,7 +80,7 @@ function extractExplicitEmailMessage(input) {
   // Keep this intentionally conservative: only treat content introduced by
   // an explicit message cue as user-provided email content.
   const match = text.match(
-    /\\b(?:saying|say|with\\s+(?:the\\s+)?message|message\\s+(?:is|:)|body\\s+(?:is|:))\\s*[:\\-]?\\s*(.+)$/i,
+    /\b(?:saying|say|with\s+(?:the\s+)?message|message\s+(?:is|:)|body\s+(?:is|:))\s*[:\-]?\s*(.+)$/i,
   );
 
   return match?.[1]?.trim() || "";
@@ -447,45 +457,35 @@ class AgentRuntime {
             !repeatedSuccessfulWorkflow &&
             workflowDefinition?.inputSchema?.required?.includes("message");
 
-          const suppliedMessage =
-            typeof toolCall.arguments?.data?.message === "string"
-              ? toolCall.arguments.data.message.trim()
-              : "";
+          if (workflowRequiresUserMessage) {
+            const explicitMessage = extractExplicitEmailMessage(input);
 
-          const inventedEmailMessage =
-            workflowRequiresUserMessage &&
-            suppliedMessage &&
-            !isLikelyUserProvidedMessage(suppliedMessage, input);
-
-          if (inventedEmailMessage) {
-            toolResult = {
-              status: "INPUT_REQUIRED",
-              workflowId,
-              workflowName: workflowDefinition?.name || "Email workflow",
-              missingFields: ["message"],
-              validationErrors: [
-                "message must be explicitly provided by the user",
-              ],
-              message:
-                "An email message must be provided by the user before the email can be sent.",
-            };
-          } else {
-            toolResult =
-              duplicateSuccessfulWorkflow || repeatedSuccessfulWorkflow
-                ? {
-                    success: true,
-                    status: "ALREADY_COMPLETED",
-                    message:
-                      "This workflow was already completed successfully during this execution. Do not execute it again. Continue the original request using its existing result.",
-                  }
-                : await this.toolExecutionService.execute({
-                    toolName: toolCall.tool,
-                    arguments: toolCall.arguments,
-                    timeoutMs: executionPolicy?.toolTimeoutMs ?? 10_000,
-                    permissions: worker.permissions || [],
-                    context,
-                  });
+            if (explicitMessage) {
+              toolCall.arguments = {
+                ...toolCall.arguments,
+                data: {
+                  ...(toolCall.arguments?.data || {}),
+                  message: explicitMessage,
+                },
+              };
+            }
           }
+
+          toolResult =
+            duplicateSuccessfulWorkflow || repeatedSuccessfulWorkflow
+              ? {
+                  success: true,
+                  status: "ALREADY_COMPLETED",
+                  message:
+                    "This workflow was already completed successfully during this execution. Do not execute it again. Continue the original request using its existing result.",
+                }
+              : await this.toolExecutionService.execute({
+                  toolName: toolCall.tool,
+                  arguments: toolCall.arguments,
+                  timeoutMs: executionPolicy?.toolTimeoutMs ?? 10_000,
+                  permissions: worker.permissions || [],
+                  context,
+                });
 
           record.result = toolResult;
           record.status = "COMPLETED";
@@ -505,15 +505,34 @@ class AgentRuntime {
           ) {
             successfulWorkflowExecution = true;
 
-            const workflowExecutionKey = getWorkflowExecutionKey(toolCall);
-            if (workflowExecutionKey) {
-              successfulWorkflowKeys.add(workflowExecutionKey);
-            }
+            const finalMessages = [
+              ...messages,
+              {
+                role: "system",
+                content:
+                  "The single registered workflow has completed successfully. Do not call any workflow again. Respond with a concise natural confirmation of the completed action.",
+              },
+            ];
 
-            const workflowId = toolCall.arguments?.workflowId ?? null;
-            if (workflowId) {
-              successfulWorkflowIds.add(workflowId);
-            }
+            const finalModelResponse = await this.modelProvider.generate({
+              model: worker.model,
+              messages: finalMessages,
+              configuration: worker.configuration || {},
+              executionPolicy,
+              tools: [],
+            });
+
+            const normalizedFinalResponse =
+              normalizeModelResponse(finalModelResponse);
+
+            return {
+              success: true,
+              output:
+                normalizedFinalResponse.output ||
+                "The requested workflow action was completed successfully.",
+              metadata: normalizedFinalResponse.metadata,
+              toolCalls: toolCallRecords,
+            };
           }
 
           if (toolResult?.status === "INPUT_REQUIRED") {

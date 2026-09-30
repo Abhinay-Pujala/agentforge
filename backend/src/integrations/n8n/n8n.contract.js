@@ -15,9 +15,30 @@
  * n8n → AgentForge
  * {
  *   success: true,
- *   result: object
+ *   result: object,
+ *   missingFields?: string[] | object
  * }
  */
+
+function normalizeMissingFields(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map((field) => String(field).trim())
+      .filter(Boolean);
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    return [value.trim()];
+  }
+
+  if (value && typeof value === "object") {
+    return Object.entries(value)
+      .filter(([, required]) => Boolean(required))
+      .map(([field]) => field);
+  }
+
+  return [];
+}
 
 export function buildN8nPayload({
   workflowId,
@@ -38,6 +59,21 @@ export function buildN8nPayload({
 }
 
 export function buildN8nSuccessResponse(result = {}) {
+  const missingFields = normalizeMissingFields(
+    result?.missingFields ?? result?.result?.missingFields,
+  );
+
+  if (missingFields.length > 0) {
+    return {
+      success: true,
+      status: "INPUT_REQUIRED",
+      missingFields,
+      result,
+      message:
+        "Additional workflow input is required before this workflow can continue.",
+    };
+  }
+
   return {
     success: true,
     result,

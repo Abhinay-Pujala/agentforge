@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ArrowLeft, Bot, Calendar, Clock, Edit, Loader2, Play, Send,
   Settings2, Trash2, History, CheckCircle2, XCircle, Timer, Workflow,
@@ -87,7 +87,7 @@ export default function WorkerDetails() {
     fetchExecutions();
   }, [id]);
 
-  async function fetchExecutions() {
+  const fetchExecutions = useCallback(async () => {
     try {
       setIsLoadingExecutions(true);
       const result = await getExecutions({ workerId: id, limit: 10 });
@@ -119,7 +119,7 @@ export default function WorkerDetails() {
     } finally {
       setIsLoadingExecutions(false);
     }
-  }
+  }, [id]);
 
   async function handleDelete() {
     const confirmed = window.confirm(`Are you sure you want to delete "${worker.name}"? This action cannot be undone.`);

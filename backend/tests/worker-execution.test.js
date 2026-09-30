@@ -119,6 +119,7 @@ describe("Worker Execution Service", () => {
         userId: user._id.toString(),
         workerId: worker._id.toString(),
         worker,
+        workflowCatalog: [],
       },
     });
   });

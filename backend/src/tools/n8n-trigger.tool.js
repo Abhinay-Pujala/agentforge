@@ -169,7 +169,6 @@ export const n8nTriggerTool = {
         missingFields: [
           ...new Set([
             ...placeholderFields,
-            ...ungroundedRequiredFields,
             ...(validation.valid
               ? []
               : validation.errors

@@ -53,21 +53,6 @@ function isPlaceholderValue(value, fieldName = "") {
   });
 }
 
-const FREEFORM_FIELD_HINTS = [
-  "message", "body", "text", "content", "description", "details",
-  "reason", "notes", "instructions", "prompt", "query", "request", "comment",
-];
-
-const GENERIC_WORKFLOW_TOKENS = new Set([
-  "send", "email", "mail", "message", "create", "add", "update", "edit",
-  "delete", "remove", "find", "lookup", "search", "fetch", "get", "retrieve",
-  "save", "store", "insert", "append", "notify", "schedule", "trigger", "run",
-  "execute", "generate", "post", "publish", "upload", "download", "sync",
-  "export", "import", "move", "copy", "archive", "assign", "please", "want",
-  "need", "would", "could", "should", "the", "this", "that", "to", "an", "a",
-  "for", "with", "from", "about", "saying", "say", "says", "tell", "write",
-]);
-
 function hasExplicitFreeformInput(userInput, fieldName) {
   if (typeof userInput !== "string" || !userInput.trim()) {
     return false;

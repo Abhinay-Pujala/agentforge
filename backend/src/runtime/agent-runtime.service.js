@@ -52,7 +52,28 @@ const WORKFLOW_ACTION_WORDS = new Set([
   "assign",
 ]);
 
+function isWorkflowPlaceholderInput(input) {
+  const normalized = String(input || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[.!?]+$/, "")
+    .replace(/\\s+/g, " ");
+
+  // The Run Worker UI uses this as its initial placeholder. It is status
+  // text, not a user request, so it must never unlock a side-effecting
+  // workflow.
+  return new Set([
+    "worker is ready to execute",
+    "worker ready to execute",
+    "ready to execute",
+  ]).has(normalized);
+}
+
 function hasWorkflowIntent(input) {
+  if (isWorkflowPlaceholderInput(input)) {
+    return false;
+  }
+
   return tokenize(input).some((token) => WORKFLOW_ACTION_WORDS.has(token));
 }
 

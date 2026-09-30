@@ -1,11 +1,9 @@
 /**
- * Builds provider-agnostic model messages from Worker configuration,
- * user input, and optional runtime context.
+ * Builds the model prompt for a Worker execution.
  *
- * @param {Object} worker
- * @param {string} input
- * @param {Object} [context={}]
- * @returns {Array<{role: "system"|"user", content: string}>}
+ * The model receives only the context it needs to make a decision:
+ * Worker instructions, the registered workflow catalog, and resume state.
+ * Internal execution IDs and server metadata stay outside the prompt.
  */
 export function buildPrompt(worker, input, context = {}) {
   const systemParts = [];
@@ -19,49 +17,45 @@ export function buildPrompt(worker, input, context = {}) {
   }
 
   if (worker.instructions) {
-    systemParts.push(`Instructions:\\n${worker.instructions}`);
+    systemParts.push(`Worker instructions:\n${worker.instructions}`);
   }
 
-  if (
-    Array.isArray(context.workflowCatalog) &&
-    context.workflowCatalog.length > 0
-  ) {
+  const workflows = Array.isArray(context.workflowCatalog)
+    ? context.workflowCatalog
+    : [];
+
+  if (workflows.length > 0) {
     systemParts.push(
-      `Workflow execution rules:
-- Behave as a normal worker for ordinary conversation, greetings, questions, explanations, and capability requests.
-- Only use n8n.trigger when the user explicitly asks you to perform an actionable task that a registered workflow can perform.
-- Never trigger a workflow merely because a workflow is registered or because the user asks what you can do.
-- If exactly one workflow is available, use that workflow's exact ID for an actionable request.
-- Extract known workflow fields from the user's request and put them in data.
-- Follow the worker instructions for transformations. For example, an email worker should create a concise subject and improve the user's rough message before sending it.
-- Never invent recipients, dates, amounts, facts, or other important values.
-- If required user information is missing, omit that field. Do not guess it.
-- The workflow result is authoritative. If it returns INPUT_REQUIRED and missingFields, stop the workflow attempt and ask the user for the missing information.
-- On a resumed execution, put the user's latest answer into the field identified by resumeTargetField and preserve all previously collected workflow data.
-- After a workflow completes successfully, never trigger that workflow again during the same execution.
-Available workflows:
-${JSON.stringify(context.workflowCatalog, null, 2)}`,
+      `Workflow rules:
+- Act as a normal Worker for conversation, questions, explanations, and capability requests.
+- Use a registered workflow only when the user explicitly asks you to perform an actionable task that workflow can perform.
+- Never trigger a workflow because one happens to be registered.
+- Use the exact registered workflow ID. Never invent a workflow ID.
+- Extract only values actually supplied by the user.
+- Never invent recipients, dates, amounts, names, facts, or other important values.
+- If a required value is missing, leave it missing. The workflow trigger will return INPUT_REQUIRED.
+- Treat INPUT_REQUIRED and missingFields as authoritative. Stop and ask the user only for those missing values.
+- Preserve values already collected during a paused execution.
+- Follow Worker instructions for transformations. For example, an email Worker may create a concise subject and improve the user's message, but it must not invent the message itself.
+- After successful workflow completion, do not trigger the workflow again.
+Registered workflows:
+${JSON.stringify(workflows, null, 2)}`,
     );
   }
 
   if (context.resumedFromExecutionId) {
-    const resumeField = context.resumeTargetField || "the missing workflow field";
-    systemParts.push(
-      `Resume instructions:
-- This is a continuation of a paused workflow execution.
-- The user's latest answer is authoritative for ${resumeField}.
-- Put that answer into the workflow field ${resumeField}; do not ask for that same value again.
-- Preserve all previously collected workflow data.
-- Re-check missingFields after the workflow trigger. If fields are still missing, ask only for those fields.`,
-    );
-  }
+    const resumeField =
+      context.resumeTargetField || "the requested missing field";
 
-  if (Object.keys(context).length > 0) {
-    const safeContext = {
-      ...context,
-      worker: undefined,
-    };
-    systemParts.push(`Runtime context:\\n${JSON.stringify(safeContext, null, 2)}`);
+    systemParts.push(
+      `Resume rules:
+- This is a continuation of a paused workflow.
+- The user's latest answer belongs to ${resumeField}.
+- Use the latest answer for that field without asking for it again.
+- Preserve all previously collected workflow values.
+- Trigger the workflow again only to continue the paused task.
+- If the workflow still reports missingFields, ask only for those fields.`,
+    );
   }
 
   return [

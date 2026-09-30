@@ -74,42 +74,6 @@ function shouldAttemptWorkflow(input, workflowCatalog) {
   return Boolean(inferWorkflowForInput(workflowCatalog, input));
 }
 
-function extractExplicitEmailMessage(input) {
-  const text = String(input || "").trim();
-
-  // Keep this intentionally conservative: only treat content introduced by
-  // an explicit message cue as user-provided email content.
-  const match = text.match(
-    /\b(?:saying|say|with\s+(?:the\s+)?message|message\s+(?:is|:)|body\s+(?:is|:))\s*[:\-]?\s*(.+)$/i,
-  );
-
-  return match?.[1]?.trim() || "";
-}
-
-function isLikelyUserProvidedMessage(message, input) {
-  const messageText = String(message || "").trim().toLowerCase();
-  const explicitMessage = extractExplicitEmailMessage(input).toLowerCase();
-
-  if (!messageText || !explicitMessage) return false;
-
-  // A model may polish the user's wording into a natural email body. Treat
-  // it as user-derived when it contains all meaningful tokens from the
-  // explicitly supplied message, while still rejecting invented bodies.
-  const normalizeTokens = (value) =>
-    String(value || "")
-      .replace(/[“”‘’]/g, "'")
-      .toLowerCase()
-      .split(/[^a-z0-9]+/)
-      .filter((token) => token.length > 2);
-
-  const suppliedTokens = new Set(normalizeTokens(explicitMessage));
-  const generatedTokens = new Set(normalizeTokens(messageText));
-
-  if (suppliedTokens.size === 0) return false;
-
-  return [...suppliedTokens].every((token) => generatedTokens.has(token));
-}
-
 function getRequiredWorkflowFields(workflow) {
   return Array.isArray(workflow?.inputSchema?.required)
     ? workflow.inputSchema.required
@@ -451,26 +415,6 @@ class AgentRuntime {
               workflow.id?.toString() === workflowId?.toString(),
           );
 
-          const workflowRequiresUserMessage =
-            toolCall.tool === "n8n.trigger" &&
-            !duplicateSuccessfulWorkflow &&
-            !repeatedSuccessfulWorkflow &&
-            workflowDefinition?.inputSchema?.required?.includes("message");
-
-          if (workflowRequiresUserMessage) {
-            const explicitMessage = extractExplicitEmailMessage(input);
-
-            if (explicitMessage) {
-              toolCall.arguments = {
-                ...toolCall.arguments,
-                data: {
-                  ...(toolCall.arguments?.data || {}),
-                  message: explicitMessage,
-                },
-              };
-            }
-          }
-
           toolResult =
             duplicateSuccessfulWorkflow || repeatedSuccessfulWorkflow
               ? {
@@ -504,35 +448,6 @@ class AgentRuntime {
             toolResult?.status !== "INPUT_REQUIRED"
           ) {
             successfulWorkflowExecution = true;
-
-            const finalMessages = [
-              ...messages,
-              {
-                role: "system",
-                content:
-                  "The single registered workflow has completed successfully. Do not call any workflow again. Respond with a concise natural confirmation of the completed action.",
-              },
-            ];
-
-            const finalModelResponse = await this.modelProvider.generate({
-              model: worker.model,
-              messages: finalMessages,
-              configuration: worker.configuration || {},
-              executionPolicy,
-              tools: [],
-            });
-
-            const normalizedFinalResponse =
-              normalizeModelResponse(finalModelResponse);
-
-            return {
-              success: true,
-              output:
-                normalizedFinalResponse.output ||
-                "The requested workflow action was completed successfully.",
-              metadata: normalizedFinalResponse.metadata,
-              toolCalls: toolCallRecords,
-            };
           }
 
           if (toolResult?.status === "INPUT_REQUIRED") {
@@ -572,6 +487,41 @@ class AgentRuntime {
         }
 
         toolCallRecords.push(record);
+
+        if (
+          toolCall.tool === "n8n.trigger" &&
+          record.result?.success === true &&
+          record.result?.status !== "INPUT_REQUIRED"
+        ) {
+          const finalMessages = [
+            ...messages,
+            {
+              role: "system",
+              content:
+                "The registered workflow has completed successfully. Do not call any workflow again. Respond with a concise natural confirmation of the completed action.",
+            },
+          ];
+
+          const finalModelResponse = await this.modelProvider.generate({
+            model: worker.model,
+            messages: finalMessages,
+            configuration: worker.configuration || {},
+            executionPolicy,
+            tools: [],
+          });
+
+          const normalizedFinalResponse =
+            normalizeModelResponse(finalModelResponse);
+
+          return {
+            success: true,
+            output:
+              normalizedFinalResponse.output ||
+              "The requested workflow action was completed successfully.",
+            metadata: normalizedFinalResponse.metadata,
+            toolCalls: toolCallRecords,
+          };
+        }
 
         // A repeated successful workflow is already complete. Stop the
         // orchestration loop instead of allowing the model to call the same

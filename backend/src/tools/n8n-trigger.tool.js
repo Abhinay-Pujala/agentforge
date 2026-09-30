@@ -53,6 +53,33 @@ function isPlaceholderValue(value, fieldName = "") {
   });
 }
 
+const FREEFORM_FIELD_HINTS = [
+  "message", "body", "text", "content", "description", "details",
+  "reason", "notes", "instructions", "prompt", "query", "request", "comment",
+];
+
+function tokenize(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/https?:\\/\\/\\S+/g, " ")
+    .replace(/\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b/gi, " ")
+    .split(/[^a-z0-9]+/)
+    .filter((token) => token.length > 2);
+}
+
+function isFreeformField(fieldName, fieldSchema = {}) {
+  const name = String(fieldName || "").toLowerCase();
+  const description = String(fieldSchema?.description || "").toLowerCase();
+  const combined = name + " " + description;
+  return FREEFORM_FIELD_HINTS.some((hint) => combined.includes(hint));
+}
+
+function hasGroundedFreeformValue(value, originalInput) {
+  const source = new Set(tokenize(originalInput));
+  const generated = tokenize(value);
+  if (source.size === 0 || generated.length === 0) return false;
+  return generated.some((token) => source.has(token));
+}
 function removePlaceholderValues(value) {
   if (Array.isArray(value)) {
     return value.map(removePlaceholderValues);
@@ -142,7 +169,27 @@ export const n8nTriggerTool = {
       workflow.inputSchema,
     );
 
-    if (placeholderFields.length > 0) {
+    const requiredFields = Array.isArray(workflow.inputSchema?.required)
+      ? workflow.inputSchema.required
+      : [];
+
+    const ungroundedRequiredFields = requiredFields.filter((field) => {
+      const fieldSchema = workflow.inputSchema?.properties?.[field];
+
+      return (
+        typeof sanitizedData[field] === "string" &&
+        isFreeformField(field, fieldSchema) &&
+        !hasGroundedFreeformValue(
+          sanitizedData[field],
+          context.originalUserInput || "",
+        )
+      );
+    });
+
+    if (
+      placeholderFields.length > 0 ||
+      ungroundedRequiredFields.length > 0
+    ) {
       return {
         status: "INPUT_REQUIRED",
         workflowId: workflow._id.toString(),
@@ -150,6 +197,7 @@ export const n8nTriggerTool = {
         missingFields: [
           ...new Set([
             ...placeholderFields,
+            ...ungroundedRequiredFields,
             ...(validation.valid
               ? []
               : validation.errors
@@ -162,10 +210,22 @@ export const n8nTriggerTool = {
           ]),
         ],
         validationErrors: validation.valid
-          ? placeholderFields.map(
-              (field) => `arguments.${field} contains a placeholder value`,
-            )
-          : validation.errors,
+          ? [
+              ...placeholderFields.map(
+                (field) => `arguments.${field} contains a placeholder value`,
+              ),
+              ...ungroundedRequiredFields.map(
+                (field) =>
+                  `arguments.${field} was not grounded in the user's request`,
+              ),
+            ]
+          : [
+              ...validation.errors,
+              ...ungroundedRequiredFields.map(
+                (field) =>
+                  `arguments.${field} was not grounded in the user's request`,
+              ),
+            ],
         message:
           "Additional workflow input is required before this workflow can run.",
       };

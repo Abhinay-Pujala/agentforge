@@ -57,7 +57,7 @@ function isWorkflowPlaceholderInput(input) {
     .trim()
     .toLowerCase()
     .replace(/[.!?]+$/, "")
-    .replace(/\\s+/g, " ");
+    .replace(/\s+/g, " ");
 
   // The Run Worker UI uses this as its initial placeholder. It is status
   // text, not a user request, so it must never unlock a side-effecting

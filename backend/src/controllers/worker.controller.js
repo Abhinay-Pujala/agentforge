@@ -381,24 +381,20 @@ export async function resumeWorkerExecution(req, res, next) {
           Array.isArray(toolCall.result.missingFields),
       );
 
-    const missingFields = lastInputRequiredCall?.result.missingFields || [];
+    const missingFields = lastInputRequiredCall?.result?.missingFields || [];
+    const previousWorkflowData =
+      lastInputRequiredCall?.arguments?.data &&
+      typeof lastInputRequiredCall.arguments.data === "object"
+        ? lastInputRequiredCall.arguments.data
+        : {};
 
-    // Prefer a free-form content field for HITL replies. For example,
-    // "birthday wishes" should fill message/text/body/content, while the
-    // model can generate a subject from that content.
-    const bodyField = missingFields.find((field) =>
-      ["message", "text", "body", "content"].includes(
-        String(field).trim().toLowerCase(),
-      ),
-    );
-
-    const targetField =
-      bodyField ||
-      (missingFields.length === 1 ? missingFields[0] : null);
-
-    const explicitWorkflowInput = targetField
-      ? { [targetField]: input.trim() }
-      : {};
+    // Preserve every value already collected before the pause. The user's
+    // reply is layered on top of that state and the runtime will merge it
+    // into the next workflow tool call. This is generic for any schema.
+    const explicitWorkflowInput =
+      missingFields.length === 1
+        ? { [missingFields[0]]: input.trim() }
+        : {};
 
 
     const executionContext = {
@@ -407,8 +403,8 @@ export async function resumeWorkerExecution(req, res, next) {
       resumedFromExecutionId: execution._id.toString(),
       explicitWorkflowInput,
       explicitUserInput: input.trim(),
-      // Preserve the original request and the HITL reply for grounding checks.
       originalUserInput: `${execution.input}\n${input.trim()}`,
+      pendingWorkflowData: previousWorkflowData,
       missingWorkflowFields: missingFields,
     };
 

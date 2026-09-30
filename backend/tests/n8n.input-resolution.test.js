@@ -57,6 +57,7 @@ describe("n8n workflow input resolution", () => {
       workflowId: "workflow-123",
       workflowName: "Gmail Automation",
       missingFields: ["to"],
+      validationErrors: ["arguments.to is required"],
       message: "Additional workflow input is required before this workflow can run.",
     });
 

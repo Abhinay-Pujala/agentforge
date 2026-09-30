@@ -102,7 +102,6 @@ function isPlaceholderWorkflowValue(value, fieldName = "") {
     : [field];
 
   return aliases.some((alias) => {
-    const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, "\\function getRequiredWorkflowFields(workflow) {");
     return new RegExp(
       "^(?:no\\s+)?" + alias +
       "\\s+(?:is\\s+)?(?:required|missing|provided|specified|available|given)$",
@@ -196,10 +195,9 @@ class AgentRuntime {
       executionPolicy?.maxToolRounds ?? DEFAULT_MAX_TOOL_ROUNDS;
 
     let toolRounds = 0;
-    const workflowIntentDetected = shouldAttemptWorkflow(
-      input,
-      context.workflowCatalog,
-    );
+    const workflowIntentDetected =
+      Boolean(context.resumedFromExecutionId) ||
+      shouldAttemptWorkflow(input, context.workflowCatalog);
     let workflowCallRequired = hasWorkflowTools && workflowIntentDetected;
     let successfulWorkflowExecution = false;
     const toolCallRecords = [];

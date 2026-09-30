@@ -219,6 +219,10 @@ export const n8nTriggerTool = {
         ? context.explicitWorkflowInput
         : {};
 
+    const hasUserGroundingContext =
+      typeof context.originalUserInput === "string" &&
+      context.originalUserInput.trim().length > 0;
+
     // Keep both the original request and the latest resume answer.
     // Resume input must not erase information already supplied by the user.
     const originalUserInput =
@@ -236,7 +240,8 @@ export const n8nTriggerTool = {
       .join(" ");
 
 
-    const missingUserFreeformFields = requiredFields.filter((field) => {
+    const missingUserFreeformFields = hasUserGroundingContext
+      ? requiredFields.filter((field) => {
       const normalizedField = String(field).toLowerCase();
 
       if (!["message", "text", "body", "content", "description"].includes(normalizedField)) {
@@ -289,7 +294,8 @@ export const n8nTriggerTool = {
     // or a downstream default to invent one. If a recipient field is present,
     // it must be grounded in an email address supplied by the user/resume.
     const recipientFields = requiredFields.filter(isRecipientField);
-    const missingRecipientFields = recipientFields.filter((field) => {
+    const missingRecipientFields = hasUserGroundingContext
+      ? recipientFields.filter((field) => {
       const value = sanitizedData[field];
 
       if (
@@ -306,7 +312,8 @@ export const n8nTriggerTool = {
       }
 
       return explicitUserEmails.size === 0;
-    });
+        })
+      : [];
 
     if (missingRecipientFields.length > 0) {
       return {

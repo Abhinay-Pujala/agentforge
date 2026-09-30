@@ -74,7 +74,37 @@ export default function Executions() {
   }, []);
 
   useEffect(() => {
-    fetchExecutions();
+    let active = true;
+
+    async function loadInitialExecutions() {
+      try {
+        setLoading(true);
+        setError("");
+
+        const result = await getExecutions({ page: 1, limit: pagination.limit });
+
+        if (active) {
+          setExecutions(result.executions);
+          setPagination(result.pagination);
+        }
+      } catch (error) {
+        if (active) {
+          setError(
+            error.response?.data?.message ||
+              error.message ||
+              "Failed to fetch executions.",
+          );
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    loadInitialExecutions();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   return (

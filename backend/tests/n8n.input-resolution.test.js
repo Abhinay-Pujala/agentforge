@@ -110,4 +110,29 @@ describe("n8n workflow input resolution", () => {
     expect(triggerN8nWorkflowMock).not.toHaveBeenCalled();
   });
 
+  it("blocks a generated free-form required value when the user supplied only workflow action details", async () => {
+    const result = await n8nTriggerTool.execute(
+      {
+        workflowId: "workflow-123",
+        data: {
+          to: "abhinay200711@gmail.com",
+          subject: "Email",
+          message: "I am writing to inform you that the requested email has been prepared.",
+        },
+      },
+      {
+        userId: "user-123",
+        workerId: "worker-123",
+        executionId: "execution-456",
+        worker: { workflowIds: ["workflow-123"] },
+        originalUserInput:
+          "Send an email to abhinay200711@gmail.com",
+      },
+    );
+
+    expect(result.status).toBe("INPUT_REQUIRED");
+    expect(result.missingFields).toContain("message");
+    expect(triggerN8nWorkflowMock).not.toHaveBeenCalled();
+  });
+
 });

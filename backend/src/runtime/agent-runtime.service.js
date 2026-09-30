@@ -540,6 +540,29 @@ class AgentRuntime {
         }
 
         if (inputRequired) {
+          // Some input failures are intentionally non-recoverable inside the
+          // same model turn. In particular, when an email body was generated
+          // by the model but was not explicitly supplied by the user, retrying
+          // the same turn only produces another invented body and another
+          // INPUT_REQUIRED tool call. Stop here and surface the missing input
+          // to the execution UI so the user can provide it.
+          const requiresExplicitUserInput =
+            inputRequired.validationErrors?.some((error) =>
+              error.includes("must be explicitly provided by the user"),
+            );
+
+          if (requiresExplicitUserInput) {
+            return {
+              success: true,
+              output:
+                "Additional information is required before this action can continue.",
+              metadata: {
+                inputRequired,
+              },
+              toolCalls: toolCallRecords,
+            };
+          }
+
           if (inputRecoveryAttempts >= 2) {
             return {
               success: true,

@@ -38,6 +38,86 @@ describe("AgentForge → n8n integration", () => {
     });
   });
 
+  it("keeps greetings conversational even when a workflow is registered", async () => {
+    const modelProvider = {
+      generate: vi.fn().mockResolvedValue({
+        output: "Hi! How can I help?",
+        toolCalls: [],
+      }),
+    };
+
+    const registry = new ToolRegistry();
+    registry.register(n8nTriggerTool);
+    const runtime = new AgentRuntime(modelProvider, registry);
+
+    const result = await runtime.execute({
+      worker: {
+        _id: "worker-123",
+        model: "test-model",
+        instructions: "Be helpful.",
+        enabledTools: ["n8n.trigger"],
+        permissions: ["n8n.trigger"],
+        workflowIds: ["workflow-123"],
+      },
+      input: "Hi",
+      context: {
+        userId: "user-123",
+        workerId: "worker-123",
+        workflowCatalog: [{
+          id: "workflow-123",
+          name: "Gmail Automation",
+          description: "Send email through Gmail.",
+          category: "email",
+          inputSchema: { type: "object", properties: {}, required: [] },
+        }],
+      },
+    });
+
+    expect(result.output).toBe("Hi! How can I help?");
+    expect(modelProvider.generate).toHaveBeenCalledWith(
+      expect.objectContaining({ tools: [] }),
+    );
+    expect(triggerN8nWorkflowMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps informational questions conversational", async () => {
+    const modelProvider = {
+      generate: vi.fn().mockResolvedValue({
+        output: "You can use this worker to send emails.",
+        toolCalls: [],
+      }),
+    };
+
+    const registry = new ToolRegistry();
+    registry.register(n8nTriggerTool);
+    const runtime = new AgentRuntime(modelProvider, registry);
+
+    await runtime.execute({
+      worker: {
+        _id: "worker-123",
+        model: "test-model",
+        instructions: "Be helpful.",
+        enabledTools: ["n8n.trigger"],
+        permissions: ["n8n.trigger"],
+        workflowIds: ["workflow-123"],
+      },
+      input: "How do I send an email?",
+      context: {
+        userId: "user-123",
+        workerId: "worker-123",
+        workflowCatalog: [{
+          id: "workflow-123",
+          name: "Gmail Automation",
+          description: "Send email through Gmail.",
+          category: "email",
+          inputSchema: { type: "object", properties: {}, required: [] },
+        }],
+      },
+    });
+
+    expect(triggerN8nWorkflowMock).not.toHaveBeenCalled();
+  });
+
   it("executes a registered workflow through the real runtime", async () => {
     const modelProvider = {
       generate: vi.fn()

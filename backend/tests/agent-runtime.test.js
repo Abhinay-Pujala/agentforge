@@ -721,6 +721,7 @@ describe("AgentRuntime tool capabilities", () => {
         explicitWorkflowInput: {
           message: "Hello from the user",
         },
+        resumedFromExecutionId: "execution-123",
         originalUserInput:
           "Send an email to user@example.com\nHello from the user",
       },

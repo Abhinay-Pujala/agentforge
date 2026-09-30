@@ -34,8 +34,10 @@ export function buildPrompt(worker, input, context = {}) {
 - Extract workflow fields from the user's natural-language request and put them in data. For an email request, for example, "send an email saying the meeting is tomorrow" means the message is "the meeting is tomorrow".
 - Follow the worker instructions when transforming user-provided information, such as creating a concise subject or polishing an email body.
 - Never invent factual values, placeholders, recipients, dates, amounts, or other important details that the user did not provide.
-- If a required field is genuinely missing, omit that field from data. Do not fabricate it. If the runtime is resuming a paused execution, treat the user's additional information as authoritative for the missing field.
-- The workflow validator is the source of truth for required fields. If it returns INPUT_REQUIRED, stop and let the runtime request that field from the user.
+- If a required user-provided field is genuinely missing, omit that field from data. Do not fabricate recipients, dates, amounts, or other factual values.
+- For email workflows, generate a concise subject from the user-provided email content when a subject is required; the subject is a derived field, not information the user must separately provide.
+- If the runtime is resuming a paused execution, the user's additional information is authoritative for the exact missing field named by resumeTargetField. Preserve all previously collected workflow data and do not ask for the same information again.
+- The workflow validator is the source of truth for required fields. If it returns INPUT_REQUIRED, stop and let the runtime request only genuinely user-provided information that is still missing.
 - After the workflow succeeds, do not call n8n.trigger again.
 Available workflows:
 ${JSON.stringify(context.workflowCatalog, null, 2)}`,

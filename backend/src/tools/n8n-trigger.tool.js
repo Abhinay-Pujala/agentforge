@@ -58,13 +58,26 @@ const FREEFORM_FIELD_HINTS = [
   "reason", "notes", "instructions", "prompt", "query", "request", "comment",
 ];
 
+const GENERIC_WORKFLOW_TOKENS = new Set([
+  "send", "email", "mail", "message", "create", "add", "update", "edit",
+  "delete", "remove", "find", "lookup", "search", "fetch", "get", "retrieve",
+  "save", "store", "insert", "append", "notify", "schedule", "trigger", "run",
+  "execute", "generate", "post", "publish", "upload", "download", "sync",
+  "export", "import", "move", "copy", "archive", "assign", "please", "want",
+  "need", "would", "could", "should", "the", "this", "that", "to", "an", "a",
+  "for", "with", "from", "about", "saying", "say", "says", "tell", "write",
+]);
+
 function tokenize(value) {
   return String(value || "")
     .toLowerCase()
     .replace(/https?:\\/\\/\\S+/g, " ")
     .replace(/\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b/gi, " ")
     .split(/[^a-z0-9]+/)
-    .filter((token) => token.length > 2);
+    .filter(
+      (token) =>
+        token.length > 2 && !GENERIC_WORKFLOW_TOKENS.has(token),
+    );
 }
 
 function isFreeformField(fieldName, fieldSchema = {}) {

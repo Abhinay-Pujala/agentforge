@@ -555,48 +555,19 @@ class AgentRuntime {
         }
 
         if (inputRequired) {
-          // Some input failures are intentionally non-recoverable inside the
-          // same model turn. In particular, when an email body was generated
-          // by the model but was not explicitly supplied by the user, retrying
-          // the same turn only produces another invented body and another
-          // INPUT_REQUIRED tool call. Stop here and surface the missing input
-          // to the execution UI so the user can provide it.
-          const requiresExplicitUserInput =
-            inputRequired.validationErrors?.some((error) =>
-              error.includes("must be explicitly provided by the user"),
-            );
-
-          if (requiresExplicitUserInput) {
-            return {
-              success: true,
-              output:
-                "Additional information is required before this action can continue.",
-              metadata: {
-                inputRequired,
-              },
-              toolCalls: toolCallRecords,
-            };
-          }
-
-          if (inputRecoveryAttempts >= 2) {
-            return {
-              success: true,
-              output:
-                "Additional information is required before this action can continue.",
-              metadata: {
-                inputRequired,
-              },
-              toolCalls: toolCallRecords,
-            };
-          }
-
-          workflowCallRequired = true;
-
-          messages.push({
-            role: "system",
-            content:
-              `The last n8n workflow call could not run because its input was incomplete or invalid. Missing fields: ${inputRequired.missingFields.join(", ") || "none"}. Validation details: ${inputRequired.validationErrors.join("; ") || "none"}. Re-evaluate the original user request and previous workflow results. Correct every field you can safely determine. Do not invent values or placeholders. Call n8n.trigger again with corrected/known data and leave only genuinely unresolved required fields absent so the runtime can request them from the user. This is the final automatic input-recovery attempt for this workflow.`,
-          });
+          // A workflow input failure is a deterministic handoff to the user.
+          // Do not ask the model to retry with guessed values. The execution
+          // controller will persist WAITING_FOR_INPUT and resume with the
+          // user's explicit value.
+          return {
+            success: true,
+            output:
+              "Additional information is required before this action can continue.",
+            metadata: {
+              inputRequired,
+            },
+            toolCalls: toolCallRecords,
+          };
         }
       }
     }

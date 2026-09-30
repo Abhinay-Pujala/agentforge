@@ -259,7 +259,8 @@ export const n8nTriggerTool = {
       }
 
       return !hasExplicitFreeformInput(userInput, field);
-    });
+        })
+      : [];
 
     // Preserve content from the original request when the current
     // resume answer only supplies another field such as the recipient.

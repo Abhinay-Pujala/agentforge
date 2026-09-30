@@ -2,14 +2,14 @@ import { assertWorkflowAccess } from "../services/workflow.service.js";
 import { validateToolArguments } from "./tool-schema-validator.js";
 import { triggerN8nWorkflow } from "../services/n8n.service.js";
 
-function isPlaceholderValue(value) {
+function isPlaceholderValue(value, fieldName = "") {
   if (typeof value !== "string") return false;
 
   const normalized = value.trim().toLowerCase();
 
   if (!normalized) return true;
 
-  return [
+  const genericPlaceholders = new Set([
     "unknown",
     "not provided",
     "not specified",
@@ -22,11 +22,47 @@ function isPlaceholderValue(value) {
     "missing",
     "required",
     "placeholder",
-  ].includes(normalized) ||
-    /^(?:[a-z][a-z0-9 _-]*)\\s+required$/.test(normalized) ||
-    /^(?:[a-z][a-z0-9 _-]*)\\s+(?:missing|unknown|not provided|not specified)$/.test(
-      normalized,
-    );
+  ]);
+
+  if (genericPlaceholders.has(normalized)) return true;
+
+  // Reject model-generated placeholders that explicitly refer to the field,
+  // e.g. "Subject Required", "No Subject Provided", or "Message Missing".
+  // Keep this field-aware so legitimate user text is not rejected just
+  // because it contains words such as "provided" or "missing".
+  const field = String(fieldName || "")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .trim()
+    .toLowerCase();
+
+  if (!field) return false;
+
+  const escapedField = field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const fieldPattern = new RegExp(
+    "^(?:no\\s+)?" +
+      escapedField +
+      "\\s+(?:is\\s+)?(?:required|missing|provided|specified|available|given)$",
+    "i",
+  );
+  const noFieldPattern = new RegExp(
+    "^no\\s+" +
+      escapedField +
+      "(?:\\s+was|\\s+is)?\\s+(?:provided|specified|available|given)$",
+    "i",
+  );
+  const notProvidedPattern = new RegExp(
+    "^" +
+      escapedField +
+      "\\s+(?:is\\s+)?(?:not\\s+provided|not\\s+specified|not\\s+available|missing)$",
+    "i",
+  );
+
+  return (
+    fieldPattern.test(normalized) ||
+    noFieldPattern.test(normalized) ||
+    notProvidedPattern.test(normalized)
+  );
 }
 
 function removePlaceholderValues(value) {
@@ -40,7 +76,7 @@ function removePlaceholderValues(value) {
 
   return Object.fromEntries(
     Object.entries(value)
-      .filter(([, fieldValue]) => !isPlaceholderValue(fieldValue))
+      .filter(([key, fieldValue]) => !isPlaceholderValue(fieldValue, key))
       .map(([key, fieldValue]) => [key, removePlaceholderValues(fieldValue)]),
   );
 }

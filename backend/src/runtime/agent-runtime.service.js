@@ -401,19 +401,32 @@ class AgentRuntime {
           // user's new value explicitly through context. Merge that value into
           // missing workflow fields before validation so the model does not
           // have to reproduce the exact wording in a tool call.
-          if (
-            toolCall.tool === "n8n.trigger" &&
-            context.explicitWorkflowInput &&
-            typeof context.explicitWorkflowInput === "object"
-          ) {
-            const explicitInput = context.explicitWorkflowInput;
+          if (toolCall.tool === "n8n.trigger") {
+            const pendingData =
+              context.pendingWorkflowData &&
+              typeof context.pendingWorkflowData === "object"
+                ? context.pendingWorkflowData
+                : {};
+            const explicitInput =
+              context.explicitWorkflowInput &&
+              typeof context.explicitWorkflowInput === "object"
+                ? context.explicitWorkflowInput
+                : {};
+
+            // Resume from a paused workflow as a stateful continuation:
+            // preserve all values already collected, then overlay the user's
+            // new answer. This prevents the model from having to reproduce
+            // previously resolved fields exactly.
             const data = {
+              ...pendingData,
               ...(toolCall.arguments?.data || {}),
             };
 
             for (const [field, value] of Object.entries(explicitInput)) {
               if (typeof value === "string" && value.trim()) {
                 data[field] = value.trim();
+              } else if (value !== undefined && value !== null) {
+                data[field] = value;
               }
             }
 

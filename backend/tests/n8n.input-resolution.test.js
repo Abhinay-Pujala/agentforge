@@ -17,6 +17,11 @@ describe("n8n workflow input resolution", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
+    triggerN8nWorkflowMock.mockResolvedValue({
+      success: true,
+      result: { message: "Workflow completed" },
+    });
+
     assertWorkflowAccessMock.mockResolvedValue({
       _id: "workflow-123",
       name: "Gmail Automation",

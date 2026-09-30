@@ -204,6 +204,7 @@ describe("runWorker", () => {
       data: {
         output: "Execution completed",
         metadata: {
+          executionId: "execution-123",
           usage: {
             prompt_tokens: 100,
             completion_tokens: 50,

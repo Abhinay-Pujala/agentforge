@@ -87,6 +87,53 @@ export default function WorkerDetails() {
       try {
         setIsLoadingExecutions(true);
         const result = await getExecutions({ workerId: id, limit: 10 });
+            const nextExecutions = result.executions || [];
+        setExecutions(nextExecutions);
+
+        const waiting = nextExecutions.find(
+          (execution) => execution.status === "WAITING_FOR_INPUT",
+        );
+
+        if (waiting) {
+          setWaitingExecution((current) => ({
+            executionId: waiting._id,
+            missingFields:
+              current?.executionId === waiting._id
+                ? current.missingFields || []
+                : [],
+            workflowName:
+              current?.executionId === waiting._id
+                ? current.workflowName || null
+                : null,
+          }));
+        } else {
+          setWaitingExecution(null);
+        }
+      } catch (err) {
+        console.error("Failed to fetch execution history:", err);
+      } finally {
+      setIsLoadingExecutions(false);
+    }
+  }
+
+  useEffect(() => {
+    let active = true;
+
+
+
+    loadExecutions();
+
+    return () => {
+      active = false;
+    };
+  }, [id]);
+  useEffect(() => {
+    let active = true;
+
+    async function loadExecutions() {
+      try {
+        setIsLoadingExecutions(true);
+        const result = await getExecutions({ workerId: id, limit: 10 });
         if (!active) return;
 
         const nextExecutions = result.executions || [];
@@ -112,20 +159,13 @@ export default function WorkerDetails() {
           setWaitingExecution(null);
         }
       } catch (err) {
-        if (active) {
-          console.error("Failed to fetch execution history:", err);
-        }
+        if (active) console.error("Failed to fetch execution history:", err);
       } finally {
         if (active) setIsLoadingExecutions(false);
       }
-  }
+    }
 
-  useEffect(() => {
-    let active = true;
-
-
-
-    refreshExecutions();
+    loadExecutions();
 
     return () => {
       active = false;

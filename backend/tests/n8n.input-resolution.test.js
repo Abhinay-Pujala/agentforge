@@ -139,7 +139,7 @@ describe("n8n workflow input resolution", () => {
     expect(triggerN8nWorkflowMock).not.toHaveBeenCalled();
   });
 
-  it("does not execute when the email body is genuinely missing", async () => { when the email body is genuinely missing", async () => {
+  it("does not execute when the email body is genuinely missing", async () => {
     const result = await n8nTriggerTool.execute(
       {
         workflowId: "workflow-123",

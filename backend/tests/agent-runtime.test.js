@@ -917,5 +917,3 @@ Birthday wishes`,
     expect(n8nTool.execute).toHaveBeenCalledTimes(1);
     expect(modelProvider.generate).toHaveBeenCalledTimes(1);
   });
-
-});

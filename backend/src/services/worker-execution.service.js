@@ -25,6 +25,13 @@ export async function getWorkerExecutionContext(firebaseUid, workerId) {
     throw error;
   }
 
+  if (worker.status !== "enabled") {
+    const error = new Error("Worker is disabled.");
+    error.code = "WORKER_DISABLED";
+    error.statusCode = 403;
+    throw error;
+  }
+
   const workflowIds = (worker.workflowIds || []).map((id) => id.toString());
 
   const workflows = workflowIds.length

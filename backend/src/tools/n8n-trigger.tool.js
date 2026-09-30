@@ -5,31 +5,17 @@ import { triggerN8nWorkflow } from "../services/n8n.service.js";
 function isPlaceholderValue(value, fieldName = "") {
   if (typeof value !== "string") return false;
 
-  const normalized = value.trim().toLowerCase();
-
+  const normalized = value.trim().toLowerCase().replace(/[.!?]+$/, "");
   if (!normalized) return true;
 
   const genericPlaceholders = new Set([
-    "unknown",
-    "not provided",
-    "not specified",
-    "not available",
-    "n/a",
-    "na",
-    "none",
-    "null",
-    "undefined",
-    "missing",
-    "required",
-    "placeholder",
+    "unknown", "not provided", "not specified", "not available",
+    "n/a", "na", "none", "null", "undefined", "missing",
+    "required", "placeholder",
   ]);
 
   if (genericPlaceholders.has(normalized)) return true;
 
-  // Reject model-generated placeholders that explicitly refer to the field,
-  // e.g. "Subject Required", "No Subject Provided", or "Message Missing".
-  // Keep this field-aware so legitimate user text is not rejected just
-  // because it contains words such as "provided" or "missing".
   const field = String(fieldName || "")
     .replace(/([a-z])([A-Z])/g, "$1 $2")
     .replace(/[_-]+/g, " ")
@@ -38,31 +24,33 @@ function isPlaceholderValue(value, fieldName = "") {
 
   if (!field) return false;
 
-  const escapedField = field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const fieldPattern = new RegExp(
-    "^(?:no\\s+)?" +
-      escapedField +
-      "\\s+(?:is\\s+)?(?:required|missing|provided|specified|available|given)$",
-    "i",
-  );
-  const noFieldPattern = new RegExp(
-    "^no\\s+" +
-      escapedField +
-      "(?:\\s+was|\\s+is)?\\s+(?:provided|specified|available|given)$",
-    "i",
-  );
-  const notProvidedPattern = new RegExp(
-    "^" +
-      escapedField +
-      "\\s+(?:is\\s+)?(?:not\\s+provided|not\\s+specified|not\\s+available|missing)$",
-    "i",
-  );
+  // Workflow schemas may call the email body `message`, `text`, `body`,
+  // or `content`. Treat these as the same semantic field for placeholders.
+  const aliases =
+    ["message", "text", "body", "content"].includes(field)
+      ? ["message", "text", "body", "content"]
+      : [field];
 
-  return (
-    fieldPattern.test(normalized) ||
-    noFieldPattern.test(normalized) ||
-    notProvidedPattern.test(normalized)
-  );
+  return aliases.some((alias) => {
+    const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return (
+      new RegExp(
+        "^(?:no\\s+)?" + escaped +
+          "\\s+(?:is\\s+)?(?:required|missing|provided|specified|available|given)$",
+        "i",
+      ).test(normalized) ||
+      new RegExp(
+        "^no\\s+" + escaped +
+          "(?:\\s+was|\\s+is)?\\s+(?:provided|specified|available|given)$",
+        "i",
+      ).test(normalized) ||
+      new RegExp(
+        "^" + escaped +
+          "\\s+(?:is\\s+)?(?:not\\s+provided|not\\s+specified|not\\s+available|missing)$",
+        "i",
+      ).test(normalized)
+    );
+  });
 }
 
 function removePlaceholderValues(value) {

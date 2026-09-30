@@ -110,6 +110,7 @@ export default function Executions() {
               <option value="">All statuses</option>
               <option value="QUEUED">Queued</option>
               <option value="RUNNING">Running</option>
+              <option value="WAITING_FOR_INPUT">Waiting for input</option>
               <option value="COMPLETED">Completed</option>
               <option value="FAILED">Failed</option>
               <option value="TIMEOUT">Timeout</option>
@@ -272,7 +273,9 @@ export default function Executions() {
                                     : execution.status === "FAILED" ||
                                         execution.status === "TIMEOUT"
                                       ? "bg-red-500/10 text-red-400"
-                                      : "bg-yellow-500/10 text-yellow-400"
+                                      : execution.status === "WAITING_FOR_INPUT"
+                                        ? "bg-amber-500/10 text-amber-400"
+                                        : "bg-yellow-500/10 text-yellow-400"
                                 }`}
                               >
                                 {execution.status}

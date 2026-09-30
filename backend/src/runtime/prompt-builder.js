@@ -44,6 +44,18 @@ ${JSON.stringify(context.workflowCatalog, null, 2)}`,
     );
   }
 
+  if (context.resumedFromExecutionId) {
+    const resumeField = context.resumeTargetField || "the missing workflow field";
+    systemParts.push(
+      `Resume instructions:
+- This is a continuation of a paused workflow execution.
+- The user's latest answer is authoritative for ${resumeField}.
+- Put that answer into the workflow field ${resumeField}; do not ask the user for that same value again.
+- Preserve previously collected workflow data.
+- If other fields are derived by the worker, generate them from the collected data instead of asking the user for them.`,
+    );
+  }
+
   if (Object.keys(context).length > 0) {
     systemParts.push(`Runtime context:\\n${JSON.stringify(context, null, 2)}`);
   }

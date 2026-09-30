@@ -88,6 +88,27 @@ function selectResumeField(missingFields, input) {
   return missingFields[0];
 }
 
+function getWorkflowState(result) {
+  const workflowCall = [...(result?.toolCalls || [])]
+    .reverse()
+    .find((call) => call?.tool === "n8n.trigger");
+
+  const workflowResult = workflowCall?.result;
+
+  return {
+    workflowId:
+      workflowCall?.arguments?.workflowId ||
+      workflowResult?.workflowId ||
+      null,
+    workflowData:
+      workflowCall?.arguments?.data &&
+      typeof workflowCall.arguments.data === "object"
+        ? workflowCall.arguments.data
+        : {},
+    missingFields: normalizeMissingFields(workflowResult?.missingFields),
+  };
+}
+
 function addExecutionIdToMetadata(result, executionId) {
   return {
     ...(result || {}),
@@ -370,10 +391,14 @@ export async function runWorker(req, res, next) {
     const executionStatus = result.metadata?.inputRequired
       ? "WAITING_FOR_INPUT"
       : "COMPLETED";
+    const workflowState = getWorkflowState(result);
 
     await updateExecutionStatus(execution._id, {
       status: executionStatus,
       output: result.output,
+      workflowId: workflowState.workflowId,
+      workflowData: workflowState.workflowData,
+      missingFields: workflowState.missingFields,
       startedAt,
       completedAt,
       durationMs: completedAt.getTime() - startedAt.getTime(),
@@ -473,10 +498,13 @@ export async function resumeWorkerExecution(req, res, next) {
       lastInputRequiredCall?.result?.missingFields,
     );
     const previousWorkflowData =
-      lastInputRequiredCall?.arguments?.data &&
-      typeof lastInputRequiredCall.arguments.data === "object"
-        ? lastInputRequiredCall.arguments.data
-        : {};
+      execution.workflowData &&
+      typeof execution.workflowData === "object"
+        ? execution.workflowData
+        : lastInputRequiredCall?.arguments?.data &&
+            typeof lastInputRequiredCall.arguments.data === "object"
+          ? lastInputRequiredCall.arguments.data
+          : {};
 
     // Preserve every value already collected before the pause. The user's
     // reply is layered on top of that state and the runtime will merge it
@@ -536,6 +564,7 @@ ${input}`,
     const executionStatus = result.metadata?.inputRequired
       ? "WAITING_FOR_INPUT"
       : "COMPLETED";
+    const workflowState = getWorkflowState(result);
 
     const previousToolCalls = Array.isArray(execution.toolCalls)
       ? execution.toolCalls
@@ -547,6 +576,9 @@ ${input}`,
     await updateExecutionStatus(execution._id, {
       status: executionStatus,
       output: result.output,
+      workflowId: workflowState.workflowId || execution.workflowId || null,
+      workflowData: workflowState.workflowData,
+      missingFields: workflowState.missingFields,
       completedAt,
       durationMs: completedAt.getTime() - startedAt.getTime(),
       usage: {

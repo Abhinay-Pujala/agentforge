@@ -44,6 +44,47 @@ describe("n8n service", () => {
     });
   });
 
+  it("propagates missingFields from an n8n response", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({
+        success: true,
+        missingFields: ["message"],
+        result: { partial: true },
+      }),
+    }));
+
+    await expect(triggerN8nWorkflow(args)).resolves.toMatchObject({
+      success: true,
+      status: "INPUT_REQUIRED",
+      missingFields: ["message"],
+    });
+  });
+
+  it("normalizes object-shaped missingFields from n8n", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({
+        success: true,
+        result: {
+          missingFields: {
+            to: true,
+            subject: true,
+            message: false,
+          },
+        },
+      }),
+    }));
+
+    await expect(triggerN8nWorkflow(args)).resolves.toMatchObject({
+      success: true,
+      status: "INPUT_REQUIRED",
+      missingFields: ["to", "subject"],
+    });
+  });
+
   it("throws a structured HTTP failure", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
       ok: false,

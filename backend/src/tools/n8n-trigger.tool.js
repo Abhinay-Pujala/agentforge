@@ -112,8 +112,15 @@ function hasExplicitFreeformInput(userInput, fieldName) {
   return false;
 }
 
-function deriveEmailSubject(data, requiredFields) {
-  if (!Array.isArray(requiredFields) || !requiredFields.includes("subject")) {
+function deriveEmailSubject(data, requiredFields, workflow) {
+  const workflowText = `${workflow?.name || ""} ${workflow?.category || ""}`.toLowerCase();
+  const isEmailWorkflow = /email|gmail|mail/.test(workflowText);
+
+  if (
+    !isEmailWorkflow ||
+    !Array.isArray(requiredFields) ||
+    !requiredFields.includes("subject")
+  ) {
     return data;
   }
 
@@ -249,7 +256,7 @@ export const n8nTriggerTool = {
     const requiredFields = Array.isArray(workflow.inputSchema?.required)
       ? workflow.inputSchema.required
       : [];
-    sanitizedData = deriveEmailSubject(sanitizedData, requiredFields);
+    sanitizedData = deriveEmailSubject(sanitizedData, requiredFields, workflow);
 
     // Never execute a side-effect workflow when the model supplied a
     // placeholder for a field. Even if that field is optional in the

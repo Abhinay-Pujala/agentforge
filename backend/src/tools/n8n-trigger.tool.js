@@ -68,6 +68,50 @@ const GENERIC_WORKFLOW_TOKENS = new Set([
   "for", "with", "from", "about", "saying", "say", "says", "tell", "write",
 ]);
 
+function hasExplicitFreeformInput(userInput, fieldName) {
+  if (typeof userInput !== "string" || !userInput.trim()) {
+    return false;
+  }
+
+  const field = String(fieldName || "")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .trim()
+    .toLowerCase();
+
+  const isMessageField = ["message", "text", "body", "content"].includes(field);
+  if (!isMessageField) {
+    return true;
+  }
+
+  // Explicit phrases make it clear that the user supplied email content.
+  if (
+    /\b(?:saying|say|message|body|content|tell(?: them)?|write|that says)\b/i.test(
+      userInput,
+    )
+  ) {
+    return true;
+  }
+
+  // Also accept natural language where content follows the recipient directly,
+  // e.g. "Send an email to user@example.com for tomorrow's meeting."
+  const emailMatch = userInput.match(
+    /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i,
+  );
+
+  if (emailMatch?.index !== undefined) {
+    const trailingText = userInput
+      .slice(emailMatch.index + emailMatch[0].length)
+      .replace(/^[\s,:;-]+/, "")
+      .replace(/[.!?]+$/, "")
+      .trim();
+
+    return trailingText.length > 0;
+  }
+
+  return false;
+}
+
 function removePlaceholderValues(value) {
   if (Array.isArray(value)) {
     return value.map(removePlaceholderValues);
@@ -160,6 +204,52 @@ export const n8nTriggerTool = {
     const requiredFields = Array.isArray(workflow.inputSchema?.required)
       ? workflow.inputSchema.required
       : [];
+
+    // Do not let the model invent a required free-form value such as an
+    // email body when the user never supplied one. The model may still
+    // polish/rewrite a body that the user actually provided.
+    const explicitWorkflowInput =
+      context.explicitWorkflowInput &&
+      typeof context.explicitWorkflowInput === "object"
+        ? context.explicitWorkflowInput
+        : {};
+
+    const userInputForGrounding =
+      typeof context.explicitUserInput === "string" && context.explicitUserInput.trim()
+        ? context.explicitUserInput
+        : context.originalUserInput;
+
+    const missingUserProvidedFields = requiredFields.filter((field) => {
+      if (!["message", "text", "body", "content"].includes(
+        String(field).toLowerCase(),
+      )) {
+        return false;
+      }
+
+      const explicitlyResumed =
+        explicitWorkflowInput[field] !== undefined &&
+        explicitWorkflowInput[field] !== null &&
+        String(explicitWorkflowInput[field]).trim();
+
+      return (
+        !explicitlyResumed &&
+        !hasExplicitFreeformInput(userInputForGrounding, field)
+      );
+    });
+
+    if (missingUserProvidedFields.length > 0) {
+      return {
+        status: "INPUT_REQUIRED",
+        workflowId: workflow._id.toString(),
+        workflowName: workflow.name,
+        missingFields: missingUserProvidedFields,
+        validationErrors: missingUserProvidedFields.map(
+          (field) => `arguments.${field} must be supplied by the user`,
+        ),
+        message:
+          "Additional workflow input is required before this workflow can run.",
+      };
+    }
 
     if (placeholderFields.length > 0) {
       return {

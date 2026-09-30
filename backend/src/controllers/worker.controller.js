@@ -240,7 +240,7 @@ export async function updateWorker(req, res, next) {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not fouund. Please sync your account first.",
+        message: "User not found. Please sync your account first.",
         data: null,
       });
     }

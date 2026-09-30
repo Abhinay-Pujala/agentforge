@@ -504,6 +504,68 @@ describe("AgentRuntime tool capabilities", () => {
 });
 
 
+  it("does not expose n8n to ordinary conversation", async () => {
+    const n8nTool = {
+      name: "n8n.trigger",
+      description: "Trigger a registered workflow.",
+      schema: {
+        type: "object",
+        properties: {
+          workflowId: { type: "string" },
+          data: { type: "object" },
+        },
+        required: ["workflowId", "data"],
+      },
+      execute: vi.fn(),
+    };
+
+    const registry = new ToolRegistry();
+    registry.register(n8nTool);
+
+    const modelProvider = {
+      generate: vi.fn().mockResolvedValue({
+        output: "Hi! I can help you.",
+        toolCalls: [],
+        metadata: {},
+      }),
+    };
+
+    const runtime = new AgentRuntime(modelProvider, registry);
+
+    const result = await runtime.execute({
+      worker: {
+        model: "test-model",
+        instructions: "Be helpful.",
+        enabledTools: ["n8n.trigger"],
+        permissions: ["n8n.trigger"],
+        workflowIds: ["workflow-email"],
+        configuration: {},
+      },
+      input: "Hi, what can you do?",
+      context: {
+        workflowCatalog: [
+          {
+            id: "workflow-email",
+            name: "Email Automation",
+            description: "Send an email.",
+            category: "email",
+            inputSchema: {
+              type: "object",
+              properties: {},
+              required: [],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(result.output).toBe("Hi! I can help you.");
+    expect(toolRegistry.getForWorker).not.toHaveBeenCalledWith(
+      expect.arrayContaining(["n8n.trigger"]),
+    );
+    expect(n8nTool.execute).not.toHaveBeenCalled();
+  });
+
   it("executes the single registered workflow once and accepts a polished email body", async () => {
     const n8nTool = {
       name: "n8n.trigger",

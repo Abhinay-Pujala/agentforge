@@ -145,6 +145,29 @@ function deriveEmailSubject(data, requiredFields) {
   };
 }
 
+function getActionableMissingFields(validationErrors, data) {
+  const missingFields = validationErrors
+    .filter((message) => message.endsWith(" is required"))
+    .map((message) =>
+      message
+        .replace(/^arguments\./, "")
+        .replace(/ is required$/, ""),
+    );
+
+  // For email workflows, subject is derived from the body. If both are
+  // missing, ask only for the body instead of making the user provide a
+  // second value that the worker can generate itself.
+  const bodyFieldMissing = ["message", "text", "body", "content"].some(
+    (field) => missingFields.includes(field),
+  );
+
+  if (bodyFieldMissing) {
+    return missingFields.filter((field) => field !== "subject");
+  }
+
+  return missingFields;
+}
+
 function removePlaceholderValues(value) {
   if (Array.isArray(value)) {
     return value.map(removePlaceholderValues);
@@ -305,13 +328,7 @@ export const n8nTriggerTool = {
             ...placeholderFields,
             ...(validation.valid
               ? []
-              : validation.errors
-                  .filter((message) => message.endsWith(" is required"))
-                  .map((message) =>
-                    message
-                      .replace(/^arguments\./, "")
-                      .replace(/ is required$/, ""),
-                  )),
+              : getActionableMissingFields(validation.errors, sanitizedData)),
           ]),
         ],
         validationErrors: validation.valid
@@ -329,13 +346,10 @@ export const n8nTriggerTool = {
     }
 
     if (!validation.valid) {
-      const missingFields = validation.errors
-        .filter((message) => message.endsWith(" is required"))
-        .map((message) =>
-          message
-            .replace(/^arguments\./, "")
-            .replace(/ is required$/, ""),
-        );
+      const missingFields = getActionableMissingFields(
+        validation.errors,
+        sanitizedData,
+      );
 
       if (missingFields.length > 0) {
         return {

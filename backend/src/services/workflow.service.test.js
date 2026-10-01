@@ -3,6 +3,7 @@ import {
   getWorkflowConfigurationStatus,
   withWorkflowConfigurationStatus,
 } from "./workflow.service.js";
+import { classifyN8nError } from "./n8n.service.js";
 
 describe("workflow configuration status", () => {
   it("marks an enabled n8n workflow with a valid URL as ready", () => {
@@ -79,6 +80,40 @@ describe("workflow configuration status", () => {
         code: "READY",
         label: "Ready",
       },
+    });
+  });
+});
+
+
+describe("n8n error classification", () => {
+  it("classifies timeouts as retryable", () => {
+    expect(classifyN8nError({ code: "N8N_TIMEOUT" })).toMatchObject({
+      code: "N8N_TIMEOUT",
+      category: "TIMEOUT",
+      retryable: true,
+    });
+  });
+
+  it("classifies server workflow failures as retryable workflow errors", () => {
+    expect(
+      classifyN8nError({
+        code: "N8N_REQUEST_FAILED",
+        status: 500,
+        response: { error: { message: "Workflow failed." } },
+      }),
+    ).toMatchObject({
+      code: "N8N_REQUEST_FAILED",
+      category: "WORKFLOW_ERROR",
+      message: "Workflow failed.",
+      retryable: true,
+    });
+  });
+
+  it("classifies connection failures as retryable", () => {
+    expect(classifyN8nError({ code: "N8N_REQUEST_FAILED" })).toMatchObject({
+      code: "N8N_CONNECTION_FAILED",
+      category: "CONNECTION",
+      retryable: true,
     });
   });
 });

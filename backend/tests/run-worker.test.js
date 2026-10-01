@@ -272,7 +272,16 @@ describe("runWorker", () => {
         error: {
           message: "Calculator failed",
           code: 500,
+          category: null,
+          retryable: false,
         },
+        output: null,
+        usage: {
+          promptTokens: null,
+          completionTokens: null,
+          totalTokens: null,
+        },
+        cost: null,
         toolCalls: [
           expect.objectContaining({
             id: "call-failure",
@@ -328,7 +337,17 @@ describe("runWorker", () => {
         error: {
           message: "Execution timed out",
           code: 504,
+          category: null,
+          retryable: false,
         },
+        output: null,
+        usage: {
+          promptTokens: null,
+          completionTokens: null,
+          totalTokens: null,
+        },
+        cost: null,
+        toolCalls: [],
         completedAt: expect.any(Date),
         durationMs: expect.any(Number),
       }),

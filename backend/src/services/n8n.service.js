@@ -126,10 +126,15 @@ export async function triggerN8nWorkflow({
       error.retryable = classified.retryable;
       throw error;
     }
-    throw Object.assign(
+    const connectionError = Object.assign(
       new Error(error.message || "Failed to trigger n8n workflow"),
-      { code: "N8N_REQUEST_FAILED", category: "CONNECTION" },
+      { code: "N8N_REQUEST_FAILED" },
     );
+    const classified = classifyN8nError(connectionError);
+    connectionError.userMessage = classified.message;
+    connectionError.category = classified.category;
+    connectionError.retryable = classified.retryable;
+    throw connectionError;
   } finally {
     clearTimeout(timeout);
   }

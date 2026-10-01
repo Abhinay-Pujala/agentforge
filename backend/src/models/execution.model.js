@@ -132,6 +132,14 @@ const executionSchema = new mongoose.Schema(
             type: String,
             default: null,
           },
+          category: {
+            type: String,
+            default: null,
+          },
+          retryable: {
+            type: Boolean,
+            default: false,
+          },
         },
         durationMs: {
           type: Number,

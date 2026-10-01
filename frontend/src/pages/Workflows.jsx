@@ -12,6 +12,9 @@ export default function Workflows() {
   const [deletingId, setDeletingId] = useState("");
   const [testingId, setTestingId] = useState("");
   const [testResults, setTestResults] = useState({});
+  const [testInputId, setTestInputId] = useState("");
+  const [testInput, setTestInput] = useState("{}");
+  const [testInputError, setTestInputError] = useState("");
 
   async function loadWorkflows() {
     try {
@@ -36,11 +39,48 @@ export default function Workflows() {
     loadWorkflows();
   }, []);
 
+  function openTestControls(workflow) {
+    setError("");
+    setTestInputError("");
+    setTestResults((previous) => ({
+      ...previous,
+      [workflow._id]: null,
+    }));
+    setTestInputId(workflow._id);
+    setTestInput(JSON.stringify({
+      input: "test",
+      agentforge: {
+        test: true,
+      },
+    }, null, 2));
+  }
 
+  function closeTestControls() {
+    if (testingId) return;
+    setTestInputId("");
+    setTestInput("{}");
+    setTestInputError("");
+  }
 
   async function handleTest(workflow) {
     if (workflow.configurationStatus?.code !== "READY") {
       setError("This workflow is not ready to test.");
+      return;
+    }
+
+    let testData;
+    try {
+      testData = JSON.parse(testInput);
+      if (
+        typeof testData !== "object" ||
+        testData === null ||
+        Array.isArray(testData)
+      ) {
+        setTestInputError("Test input must be a valid JSON object.");
+        return;
+      }
+    } catch {
+      setTestInputError("Test input contains invalid JSON.");
       return;
     }
 
@@ -54,13 +94,14 @@ export default function Workflows() {
 
     try {
       setError("");
+      setTestInputError("");
       setTestingId(workflow._id);
       setTestResults((previous) => ({
         ...previous,
         [workflow._id]: null,
       }));
 
-      const result = await testWorkflow(workflow._id);
+      const result = await testWorkflow(workflow._id, testData);
       setTestResults((previous) => ({
         ...previous,
         [workflow._id]: {
@@ -86,7 +127,6 @@ export default function Workflows() {
       setTestingId("");
     }
   }
-
 
   async function handleDelete(workflow) {
     if (
@@ -191,129 +231,200 @@ export default function Workflows() {
           </div>
         ) : (
           <div className="grid gap-4">
-            {workflows.map((workflow) => (
-              <div
-                key={workflow._id}
-                className="rounded-2xl border border-slate-800 bg-slate-900 p-5"
-              >
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-lg font-semibold text-white">
-                        {workflow.name}
-                      </h2>
-                      <span className="rounded-full bg-indigo-500/10 px-2.5 py-1 text-xs font-medium text-indigo-400">
-                        {workflow.category}
-                      </span>
-                      <span
-                        className={`${workflow.configurationStatus?.code === "READY"
-                          ? "bg-emerald-500/10 text-emerald-400"
-                          : workflow.configurationStatus?.code === "CONFIGURATION_REQUIRED"
-                            ? "bg-amber-500/10 text-amber-400"
-                            : "bg-slate-800 text-slate-400"}`}
+            {workflows.map((workflow) => {
+              const testResult = testResults[workflow._id];
+              const isTesting = testingId === workflow._id;
+              const isTestOpen = testInputId === workflow._id;
+
+              return (
+                <div
+                  key={workflow._id}
+                  className="rounded-2xl border border-slate-800 bg-slate-900 p-5"
+                >
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="text-lg font-semibold text-white">
+                          {workflow.name}
+                        </h2>
+                        <span className="rounded-full bg-indigo-500/10 px-2.5 py-1 text-xs font-medium text-indigo-400">
+                          {workflow.category}
+                        </span>
+                        <span
+                          className={`${
+                            workflow.configurationStatus?.code === "READY"
+                              ? "bg-emerald-500/10 text-emerald-400"
+                              : workflow.configurationStatus?.code === "CONFIGURATION_REQUIRED"
+                                ? "bg-amber-500/10 text-amber-400"
+                                : "bg-slate-800 text-slate-400"
+                          }`}
+                        >
+                          {workflow.configurationStatus?.label || workflow.status}
+                        </span>
+                      </div>
+
+                      <p className="mt-2 text-sm text-slate-400">
+                        {workflow.description}
+                      </p>
+
+                      {workflow.configurationStatus?.description && (
+                        <p className="mt-2 text-xs text-slate-500">
+                          {workflow.configurationStatus.description}
+                        </p>
+                      )}
+
+                      <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-500">Connection:</span>
+                          <span className={`inline-flex items-center gap-1.5 font-medium ${
+                            workflow.configurationStatus?.code === "READY"
+                              ? "text-emerald-400"
+                              : "text-amber-400"
+                          }`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${
+                              workflow.configurationStatus?.code === "READY"
+                                ? "bg-emerald-400"
+                                : "bg-amber-400"
+                            }`} />
+                            {workflow.configurationStatus?.code === "READY"
+                              ? "Configured"
+                              : "Needs configuration"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-500">Provider:</span>
+                          <span className="font-mono text-slate-400">
+                            {workflow.webhook?.provider || "n8n"}
+                          </span>
+                        </div>
+                        <p className="sm:col-span-2">
+                          Webhook:{" "}
+                          <span className="font-mono text-slate-400">
+                            {workflow.webhook?.url ? "Configured" : "Missing"}
+                          </span>
+                        </p>
+                        <p className="sm:col-span-2">
+                          Registry ID:{" "}
+                          <span className="font-mono text-slate-400">
+                            {workflow._id}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openTestControls(workflow)}
+                        disabled={
+                          isTesting ||
+                          workflow.configurationStatus?.code !== "READY"
+                        }
+                        className="flex items-center gap-2 rounded-xl border border-emerald-500/20 px-4 py-2.5 text-sm font-medium text-emerald-400 transition-all hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
                       >
-                        {workflow.configurationStatus?.label || workflow.status}
-                      </span>                    </div>
-
-                    <p className="mt-2 text-sm text-slate-400">
-                      {workflow.description}
-                    </p>
-
-                    {workflow.configurationStatus?.description && (
-                      <p className="mt-2 text-xs text-slate-500">
-                        {workflow.configurationStatus.description}
-                      </p>
-                    )}
-
-                    <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-500">Connection:</span>
-                        <span className={`inline-flex items-center gap-1.5 font-medium ${workflow.configurationStatus?.code === "READY" ? "text-emerald-400" : "text-amber-400"}`}>
-                          <span className={`h-1.5 w-1.5 rounded-full ${workflow.configurationStatus?.code === "READY" ? "bg-emerald-400" : "bg-amber-400"}`} />
-                          {workflow.configurationStatus?.code === "READY" ? "Configured" : "Needs configuration"}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-500">Provider:</span>
-                        <span className="font-mono text-slate-400">
-                          {workflow.webhook?.provider || "n8n"}
-                        </span>
-                      </div>
-                      <p className="sm:col-span-2">
-                        Webhook:{" "}
-                        <span className="font-mono text-slate-400">
-                          {workflow.webhook?.url ? "Configured" : "Missing"}
-                        </span>
-                      </p>
-                      <p className="sm:col-span-2">
-                        Registry ID:{" "}
-                        <span className="font-mono text-slate-400">
-                          {workflow._id}
-                        </span>
-                      </p>
+                        <CheckCircle2 size={16} />
+                        Test
+                      </button>
+                      <Link
+                        to={`/dashboard/workflows/${workflow._id}/edit`}
+                        className="rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-medium text-slate-300 transition-all hover:bg-slate-800 hover:text-white"
+                      >
+                        Edit
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(workflow)}
+                        disabled={deletingId === workflow._id}
+                        className="flex items-center gap-2 rounded-xl border border-red-500/20 px-4 py-2.5 text-sm font-medium text-red-400 transition-all hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                      >
+                        {deletingId === workflow._id ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <Trash2 size={16} />
+                        )}
+                        Delete
+                      </button>
                     </div>
                   </div>
 
-                  <div className="flex shrink-0 items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleTest(workflow)}
-                      disabled={
-                        testingId === workflow._id ||
-                        workflow.configurationStatus?.code !== "READY"
-                      }
-                      className="flex items-center gap-2 rounded-xl border border-emerald-500/20 px-4 py-2.5 text-sm font-medium text-emerald-400 transition-all hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
-                    >
-                      {testingId === workflow._id ? (
-                        <Loader2 size={16} className="animate-spin" />
-                      ) : (
-                        <CheckCircle2 size={16} />
-                      )}
-                      Test
-                    </button>
-                    <Link
-                      to={`/dashboard/workflows/${workflow._id}/edit`}
-                      className="rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-medium text-slate-300 transition-all hover:bg-slate-800 hover:text-white"
-                    >
-                      Edit
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(workflow)}
-                      disabled={deletingId === workflow._id}
-                      className="flex items-center gap-2 rounded-xl border border-red-500/20 px-4 py-2.5 text-sm font-medium text-red-400 transition-all hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
-                    >
-                      {deletingId === workflow._id ? (
-                        <Loader2 size={16} className="animate-spin" />
-                      ) : (
-                        <Trash2 size={16} />
-                      )}
-                      Delete
-                    </button>
-
-
-                    {testResults[workflow._id] && (
-                      <div
-                        className={`mt-4 rounded-xl border px-4 py-3 text-sm ${
-                          testResults[workflow._id].success
-                            ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
-                            : "border-red-500/20 bg-red-500/10 text-red-300"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 font-medium">
-                          {testResults[workflow._id].success ? (
-                            <CheckCircle2 size={16} />
-                          ) : (
-                            <XCircle size={16} />
-                          )}
-                          {testResults[workflow._id].message}
+                  {isTestOpen && (
+                    <div className="mt-5 rounded-2xl border border-slate-800 bg-slate-950 p-5">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <h3 className="text-sm font-semibold text-white">
+                            Test workflow
+                          </h3>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Send a JSON payload to the registered n8n webhook. The workflow may perform real configured actions.
+                          </p>
                         </div>
+                        <button
+                          type="button"
+                          onClick={closeTestControls}
+                          disabled={isTesting}
+                          className="self-start rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-50 cursor-pointer"
+                        >
+                          Cancel
+                        </button>
                       </div>
-                    )}
-                  </div>
+
+                      <textarea
+                        value={testInput}
+                        onChange={(event) => {
+                          setTestInput(event.target.value);
+                          setTestInputError("");
+                        }}
+                        rows={9}
+                        spellCheck={false}
+                        className="mt-4 w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 font-mono text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-indigo-500"
+                        aria-label={`Test payload for ${workflow.name}`}
+                      />
+
+                      {testInputError && (
+                        <p className="mt-2 text-xs text-red-400">{testInputError}</p>
+                      )}
+
+                      <div className="mt-4 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => handleTest(workflow)}
+                          disabled={isTesting}
+                          className="flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+                        >
+                          {isTesting && <Loader2 size={16} className="animate-spin" />}
+                          {isTesting ? "Running..." : "Run Test"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {testResult && (
+                    <div
+                      className={`mt-4 rounded-xl border px-4 py-3 text-sm ${
+                        testResult.success
+                          ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
+                          : "border-red-500/20 bg-red-500/10 text-red-300"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 font-medium">
+                        {testResult.success ? (
+                          <CheckCircle2 size={16} />
+                        ) : (
+                          <XCircle size={16} />
+                        )}
+                        {testResult.message}
+                      </div>
+
+                      {testResult.success && testResult.result && (
+                        <pre className="mt-3 max-h-64 overflow-auto rounded-lg border border-slate-800 bg-slate-950 p-3 text-xs leading-5 text-slate-300">
+                          {JSON.stringify(testResult.result, null, 2)}
+                        </pre>
+                      )}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

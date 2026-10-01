@@ -587,8 +587,10 @@ class AgentRuntime {
             error?.code === "TOOL_TIMEOUT" ? "TIMEOUT" : "FAILED";
 
           record.error = {
-            message: error?.message || "Tool execution failed",
+            message: error?.userMessage || error?.message || "Tool execution failed",
             code: error?.code || null,
+            category: error?.category || null,
+            retryable: error?.retryable ?? false,
           };
 
           record.durationMs = Date.now() - startedAt;

@@ -19,9 +19,7 @@ export default function EditWorkflow() {
   if (normalizedWebhookUrl) {
     try {
       const url = new URL(normalizedWebhookUrl);
-      webhookValidation = ["http:", "https:"].includes(url.protocol)
-        ? "VALID"
-        : "INVALID";
+      webhookValidation = ["http:", "https:"].includes(url.protocol) ? "VALID" : "INVALID";
     } catch {
       webhookValidation = "INVALID";
     }
@@ -134,20 +132,16 @@ export default function EditWorkflow() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-white">n8n Connection</h2>
-                <p className="mt-1 text-sm text-slate-400">
-                  Register the n8n webhook AgentForge is allowed to trigger.
-                </p>
+                <p className="mt-1 text-sm text-slate-400">Register the n8n webhook AgentForge is allowed to trigger.</p>
               </div>
-              <span className={\`inline-flex w-fit items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium \${webhookValidation === "VALID" ? "bg-emerald-500/10 text-emerald-400" : webhookValidation === "INVALID" ? "bg-red-500/10 text-red-400" : "bg-amber-500/10 text-amber-400"}\`}>
-                <span className={\`h-1.5 w-1.5 rounded-full \${webhookValidation === "VALID" ? "bg-emerald-400" : webhookValidation === "INVALID" ? "bg-red-400" : "bg-amber-400"}\`} />
+              <span className={`inline-flex w-fit items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${webhookValidation === "VALID" ? "bg-emerald-500/10 text-emerald-400" : webhookValidation === "INVALID" ? "bg-red-500/10 text-red-400" : "bg-amber-500/10 text-amber-400"}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${webhookValidation === "VALID" ? "bg-emerald-400" : webhookValidation === "INVALID" ? "bg-red-400" : "bg-amber-400"}`} />
                 {webhookValidation === "VALID" ? "Webhook configured" : webhookValidation === "INVALID" ? "Invalid webhook URL" : "Webhook required"}
               </span>
             </div>
             <div className="mt-6">
               <input id="webhookUrl" name="webhookUrl" type="url" value={formData.webhookUrl} onChange={handleChange} placeholder="https://your-n8n-host/webhook/..." className={inputClass} />
-              <p className="mt-2 text-xs text-slate-500">
-                Only HTTP and HTTPS webhook URLs are accepted. This validates the URL format; it does not verify that n8n is reachable.
-              </p>
+              <p className="mt-2 text-xs text-slate-500">Only HTTP and HTTPS webhook URLs are accepted. This validates the URL format; it does not verify that n8n is reachable.</p>
             </div>
           </section>
 

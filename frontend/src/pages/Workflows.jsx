@@ -225,14 +225,27 @@ export default function Workflows() {
                       </p>
                     )}
 
-                    <div className="mt-3 space-y-1 text-xs text-slate-500">
-                      <p>
-                        Provider:{" "}
+                    <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-500">Connection:</span>
+                        <span className={`inline-flex items-center gap-1.5 font-medium ${workflow.configurationStatus?.code === "READY" ? "text-emerald-400" : "text-amber-400"}`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${workflow.configurationStatus?.code === "READY" ? "bg-emerald-400" : "bg-amber-400"}`} />
+                          {workflow.configurationStatus?.code === "READY" ? "Configured" : "Needs configuration"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-500">Provider:</span>
                         <span className="font-mono text-slate-400">
                           {workflow.webhook?.provider || "n8n"}
                         </span>
+                      </div>
+                      <p className="sm:col-span-2">
+                        Webhook:{" "}
+                        <span className="font-mono text-slate-400">
+                          {workflow.webhook?.url ? "Configured" : "Missing"}
+                        </span>
                       </p>
-                      <p>
+                      <p className="sm:col-span-2">
                         Registry ID:{" "}
                         <span className="font-mono text-slate-400">
                           {workflow._id}

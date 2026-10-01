@@ -429,6 +429,8 @@ export async function runWorker(req, res, next) {
         error: {
           message: err.userMessage || err.message,
           code: err.code || err.statusCode || null,
+          category: err.category || null,
+          retryable: err.retryable ?? false,
         },
         completedAt,
         durationMs: startedAt

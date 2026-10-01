@@ -307,6 +307,18 @@ export default function ExecutionDetails() {
                           Code: {toolCall.error.code}
                         </p>
                       )}
+
+                      {toolCall.error.category && (
+                        <p className="mt-1 text-xs text-red-300/80">
+                          Category: {toolCall.error.category}
+                        </p>
+                      )}
+
+                      {toolCall.error.retryable && (
+                        <p className="mt-1 text-xs text-amber-300">
+                          This failure may be retried after checking the workflow configuration or connection.
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>
@@ -331,6 +343,18 @@ export default function ExecutionDetails() {
               {execution.error?.code && (
                 <p className="mt-2 font-mono text-xs text-red-400/70">
                   Code: {execution.error.code}
+                </p>
+              )}
+
+              {execution.error?.category && (
+                <p className="mt-2 text-xs text-red-300/80">
+                  Category: {execution.error.category}
+                </p>
+              )}
+
+              {execution.error?.retryable && (
+                <p className="mt-2 text-xs text-amber-300">
+                  This failure may be retried after checking the workflow configuration or connection.
                 </p>
               )}
             </div>

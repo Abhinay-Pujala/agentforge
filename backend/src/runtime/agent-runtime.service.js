@@ -11,6 +11,29 @@ function tokenize(value) {
     .filter((token) => token.length > 2);
 }
 
+const WORKFLOW_CATEGORY_HINTS = {
+  calendar: new Set([
+    "calendar",
+    "meeting",
+    "meetings",
+    "event",
+    "events",
+    "schedule",
+    "scheduled",
+    "appointment",
+    "appointments",
+  ]),
+  email: new Set([
+    "email",
+    "emails",
+    "mail",
+    "inbox",
+    "unread",
+    "message",
+    "messages",
+  ]),
+};
+
 function inferWorkflowForInput(workflowCatalog, input) {
   if (!Array.isArray(workflowCatalog) || workflowCatalog.length === 0) {
     return null;
@@ -32,9 +55,15 @@ function inferWorkflowForInput(workflowCatalog, input) {
         inputTokens.has(token),
       );
 
+      const category = String(workflow.category || "").toLowerCase();
+      const categoryHints = WORKFLOW_CATEGORY_HINTS[category] || new Set();
+      const categoryHintMatches = [...categoryHints].filter((token) =>
+        inputTokens.has(token),
+      );
+
       return {
         workflow,
-        score: matchedTokens.length,
+        score: matchedTokens.length + categoryHintMatches.length,
       };
     })
     .sort((a, b) => b.score - a.score);
@@ -80,11 +109,10 @@ function isWorkflowPlaceholderInput(input) {
 }
 
 const WORKFLOW_REQUEST_WORDS = new Set([
-  "show", "list", "check", "view", "see", "have", "anything",
-  "any", "upcoming", "latest", "today", "tomorrow", "yesterday",
-  "week", "month", "meeting", "meetings", "event", "events",
-  "scheduled", "schedule", "calendar", "email", "emails", "message",
-  "messages", "notification", "notifications", "task", "tasks",
+  "show", "list", "check", "view", "see", "have", "anything", "any",
+  "upcoming", "latest", "today", "tomorrow", "yesterday", "week", "month",
+  "meeting", "meetings", "event", "events", "scheduled", "schedule",
+  "unread", "recent", "new",
 ]);
 
 function hasWorkflowRequestContext(input) {
@@ -103,21 +131,32 @@ function hasWorkflowIntent(input, workflowCatalog = []) {
     return true;
   }
 
+  const workflow = inferWorkflowForInput(workflowCatalog, input);
+  const hasRequestContext = hasWorkflowRequestContext(input);
+
   // Knowledge, capability, and explanatory questions should remain ordinary
   // conversation even when they mention a workflow-related word.
   if (isConversationalInput(input)) {
-    return false;
+    if (!hasRequestContext) {
+      return false;
+    }
+
+    // Natural yes/no questions such as "Do I have anything scheduled today?"
+    // are conversational in form but are still actionable workflow requests.
+    // Category hints allow the correct workflow to be selected even when the
+    // user does not explicitly say "calendar" or "email".
+    return Boolean(workflow) || workflowCatalog.length === 1;
   }
 
   // Natural-language requests often do not contain an explicit action verb,
   // for example: "What do I have on my calendar tomorrow?" Match the
   // request against the registered workflow and require request context so
   // merely mentioning a workflow does not trigger it.
-  if (!inferWorkflowForInput(workflowCatalog, input)) {
+  if (!workflow) {
     return false;
   }
 
-  return hasWorkflowRequestContext(input);
+  return hasRequestContext;
 }
 
 function shouldAttemptWorkflow(input, workflowCatalog) {

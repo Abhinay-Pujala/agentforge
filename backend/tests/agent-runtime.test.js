@@ -564,6 +564,144 @@ describe("AgentRuntime tool capabilities", () => {
     expect(n8nTool.execute).not.toHaveBeenCalled();
   });
 
+  it("triggers a single registered calendar workflow for a natural-language request", async () => {
+    const n8nTool = {
+      name: "n8n.trigger",
+      description: "Trigger a registered n8n workflow.",
+      schema: {
+        type: "object",
+        properties: {
+          workflowId: { type: "string" },
+          data: { type: "object", additionalProperties: true },
+        },
+        required: ["workflowId", "data"],
+      },
+      execute: vi.fn().mockResolvedValue({
+        success: true,
+        status: "COMPLETED",
+        result: {
+          events: [
+            { title: "AI Meeting", start: "2026-10-06T12:00:00+05:30" },
+          ],
+        },
+      }),
+    };
+
+    const toolRegistry = new ToolRegistry();
+    toolRegistry.register(n8nTool);
+
+    const modelProvider = {
+      generate: vi
+        .fn()
+        .mockResolvedValueOnce({
+          output: null,
+          toolCalls: [
+            {
+              id: "n8n-calendar-1",
+              tool: "n8n.trigger",
+              arguments: {
+                workflowId: "workflow-calendar",
+                data: {},
+              },
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          output: "You have an AI Meeting tomorrow from 12:00 PM to 1:00 PM.",
+          toolCalls: [],
+          metadata: {},
+        }),
+    };
+
+    const runtime = new AgentRuntime(modelProvider, toolRegistry);
+
+    const result = await runtime.execute({
+      worker: {
+        model: "test-model",
+        instructions: "Use the calendar workflow when appropriate.",
+        enabledTools: ["n8n.trigger"],
+        permissions: ["n8n.trigger"],
+        configuration: {},
+      },
+      input: "What do I have on my calendar tomorrow?",
+      context: {
+        workflowCatalog: [
+          {
+            id: "workflow-calendar",
+            name: "Google Calendar Agent",
+            description: "View, create, update, and delete calendar events.",
+            category: "calendar",
+            inputSchema: {
+              type: "object",
+              properties: {},
+              required: [],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(result.output).toContain("AI Meeting");
+    expect(n8nTool.execute).toHaveBeenCalledTimes(1);
+    expect(modelProvider.generate).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not trigger a workflow for a calendar knowledge question", async () => {
+    const n8nTool = {
+      name: "n8n.trigger",
+      description: "Trigger a registered n8n workflow.",
+      schema: {
+        type: "object",
+        properties: {
+          workflowId: { type: "string" },
+          data: { type: "object", additionalProperties: true },
+        },
+        required: ["workflowId", "data"],
+      },
+      execute: vi.fn(),
+    };
+
+    const toolRegistry = new ToolRegistry();
+    toolRegistry.register(n8nTool);
+
+    const modelProvider = {
+      generate: vi.fn().mockResolvedValue({
+        output: "A calendar is a system for organizing dates and events.",
+        toolCalls: [],
+        metadata: {},
+      }),
+    };
+
+    const runtime = new AgentRuntime(modelProvider, toolRegistry);
+
+    await runtime.execute({
+      worker: {
+        model: "test-model",
+        instructions: "Be helpful.",
+        enabledTools: ["n8n.trigger"],
+        permissions: ["n8n.trigger"],
+        configuration: {},
+      },
+      input: "What is a calendar?",
+      context: {
+        workflowCatalog: [
+          {
+            id: "workflow-calendar",
+            name: "Google Calendar Agent",
+            description: "View, create, update, and delete calendar events.",
+            category: "calendar",
+            inputSchema: { type: "object", properties: {}, required: [] },
+          },
+        ],
+      },
+    });
+
+    expect(n8nTool.execute).not.toHaveBeenCalled();
+    expect(modelProvider.generate).toHaveBeenCalledWith(
+      expect.objectContaining({ tools: [] }),
+    );
+  });
+
   it("executes the single registered workflow once and accepts a polished email body", async () => {
     const n8nTool = {
       name: "n8n.trigger",

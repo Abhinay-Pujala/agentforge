@@ -156,7 +156,7 @@ function hasWorkflowIntent(input, workflowCatalog = []) {
     return false;
   }
 
-  return hasRequestContext;
+  return hasWorkflowRequestContext(input);
 
 function shouldAttemptWorkflow(input, workflowCatalog) {
   if (!Array.isArray(workflowCatalog) || workflowCatalog.length === 0) {

@@ -79,12 +79,45 @@ function isWorkflowPlaceholderInput(input) {
   ]).has(normalized);
 }
 
-function hasWorkflowIntent(input) {
-  if (isWorkflowPlaceholderInput(input) || isConversationalInput(input)) {
+const WORKFLOW_REQUEST_WORDS = new Set([
+  "show", "list", "check", "view", "see", "have", "anything",
+  "any", "upcoming", "latest", "today", "tomorrow", "yesterday",
+  "week", "month", "meeting", "meetings", "event", "events",
+  "scheduled", "schedule", "calendar", "email", "emails", "message",
+  "messages", "notification", "notifications", "task", "tasks",
+]);
+
+function hasWorkflowRequestContext(input) {
+  return tokenize(input).some((token) => WORKFLOW_REQUEST_WORDS.has(token));
+}
+
+function hasWorkflowIntent(input, workflowCatalog = []) {
+  if (isWorkflowPlaceholderInput(input)) {
     return false;
   }
 
-  return tokenize(input).some((token) => WORKFLOW_ACTION_WORDS.has(token));
+  // Explicit action verbs are the strongest workflow signal. Check them
+  // before conversational-question detection so requests such as
+  // "Can you send an email?" still trigger the registered workflow.
+  if (tokenize(input).some((token) => WORKFLOW_ACTION_WORDS.has(token))) {
+    return true;
+  }
+
+  // Knowledge, capability, and explanatory questions should remain ordinary
+  // conversation even when they mention a workflow-related word.
+  if (isConversationalInput(input)) {
+    return false;
+  }
+
+  // Natural-language requests often do not contain an explicit action verb,
+  // for example: "What do I have on my calendar tomorrow?" Match the
+  // request against the registered workflow and require request context so
+  // merely mentioning a workflow does not trigger it.
+  if (!inferWorkflowForInput(workflowCatalog, input)) {
+    return false;
+  }
+
+  return hasWorkflowRequestContext(input);
 }
 
 function shouldAttemptWorkflow(input, workflowCatalog) {
@@ -95,7 +128,7 @@ function shouldAttemptWorkflow(input, workflowCatalog) {
   // General conversation must never trigger a workflow. A single-workflow
   // worker only becomes deterministic after the request clearly expresses an
   // action that could be performed by a workflow.
-  if (!hasWorkflowIntent(input)) {
+  if (!hasWorkflowIntent(input, workflowCatalog)) {
     return false;
   }
 

@@ -72,24 +72,64 @@ function inferWorkflowForInput(workflowCatalog, input) {
 }
 
 const WORKFLOW_ACTION_WORDS = new Set([
-  "send", "create", "add", "update", "edit", "delete", "remove",
-  "find", "lookup", "search", "fetch", "get", "retrieve", "save",
-  "store", "insert", "append", "notify", "schedule", "trigger",
-  "run", "execute", "generate", "post", "publish", "upload",
-  "download", "sync", "export", "import", "move", "copy", "archive",
+  "send",
+  "create",
+  "add",
+  "update",
+  "edit",
+  "delete",
+  "remove",
+  "find",
+  "lookup",
+  "search",
+  "fetch",
+  "get",
+  "retrieve",
+  "save",
+  "store",
+  "insert",
+  "append",
+  "notify",
+  "schedule",
+  "trigger",
+  "run",
+  "execute",
+  "generate",
+  "post",
+  "publish",
+  "upload",
+  "download",
+  "sync",
+  "export",
+  "import",
+  "move",
+  "copy",
+  "archive",
   "assign",
 ]);
 
 function isConversationalInput(input) {
-  const normalized = String(input || "").trim().toLowerCase();
+  const normalized = String(input || "")
+    .trim()
+    .toLowerCase();
 
   if (!normalized) return true;
 
-  return /^(?:hi|hello|hey|yo|thanks|thank you|good morning|good afternoon|good evening)[!,.s]*$/i.test(normalized)
-    || /^(?:what can you do|what do you do|who are you|how can you help|what are your capabilities)[?!.,s]*$/i.test(normalized)
-    || /^(?:can you|could you) (?:explain|tell me about|describe|help me understand)\b/i.test(normalized)
-    || /^(?:how do i|how can i|what is|what are|why does|why is|tell me about)\b/i.test(normalized)
-    || /^(?:can|could|would|should|do|does|is|are)\b[^\n]*\?$/i.test(normalized);
+  return (
+    /^(?:hi|hello|hey|yo|thanks|thank you|good morning|good afternoon|good evening)[!,.s]*$/i.test(
+      normalized,
+    ) ||
+    /^(?:what can you do|what do you do|who are you|how can you help|what are your capabilities)[?!.,s]*$/i.test(
+      normalized,
+    ) ||
+    /^(?:can you|could you) (?:explain|tell me about|describe|help me understand)\b/i.test(
+      normalized,
+    ) ||
+    /^(?:how do i|how can i|what is|what are|why does|why is|tell me about)\b/i.test(
+      normalized,
+    ) ||
+    /^(?:can|could|would|should|do|does|is|are)\b[^\n]*\?$/i.test(normalized)
+  );
 }
 function isWorkflowPlaceholderInput(input) {
   const normalized = String(input || "")
@@ -109,10 +149,30 @@ function isWorkflowPlaceholderInput(input) {
 }
 
 const WORKFLOW_REQUEST_WORDS = new Set([
-  "show", "list", "check", "view", "see", "have", "anything", "any",
-  "upcoming", "latest", "today", "tomorrow", "yesterday", "week", "month",
-  "meeting", "meetings", "event", "events", "scheduled", "schedule",
-  "unread", "recent", "new",
+  "show",
+  "list",
+  "check",
+  "view",
+  "see",
+  "have",
+  "anything",
+  "any",
+  "upcoming",
+  "latest",
+  "today",
+  "tomorrow",
+  "yesterday",
+  "week",
+  "month",
+  "meeting",
+  "meetings",
+  "event",
+  "events",
+  "scheduled",
+  "schedule",
+  "unread",
+  "recent",
+  "new",
 ]);
 
 function hasWorkflowRequestContext(input) {
@@ -157,6 +217,7 @@ function hasWorkflowIntent(input, workflowCatalog = []) {
   }
 
   return hasWorkflowRequestContext(input);
+}
 
 function shouldAttemptWorkflow(input, workflowCatalog) {
   if (!Array.isArray(workflowCatalog) || workflowCatalog.length === 0) {
@@ -182,13 +243,25 @@ function shouldAttemptWorkflow(input, workflowCatalog) {
 function isPlaceholderWorkflowValue(value, fieldName = "") {
   if (typeof value !== "string") return false;
 
-  const normalized = value.trim().toLowerCase().replace(/[.!?]+$/, "");
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[.!?]+$/, "");
   if (!normalized) return true;
 
   const generic = new Set([
-    "unknown", "not provided", "not specified", "not available",
-    "n/a", "na", "none", "null", "undefined", "missing",
-    "required", "placeholder",
+    "unknown",
+    "not provided",
+    "not specified",
+    "not available",
+    "n/a",
+    "na",
+    "none",
+    "null",
+    "undefined",
+    "missing",
+    "required",
+    "placeholder",
   ]);
 
   if (generic.has(normalized)) return true;
@@ -204,15 +277,20 @@ function isPlaceholderWorkflowValue(value, fieldName = "") {
     : [field];
 
   return aliases.some((alias) => {
-    return new RegExp(
-      "^(?:no\\s+)?" + alias +
-      "\\s+(?:is\\s+)?(?:required|missing|provided|specified|available|given)$",
-      "i",
-    ).test(normalized) || new RegExp(
-      "^" + alias +
-      "\\s+(?:is\\s+)?(?:not\\s+provided|not\\s+specified|not\\s+available|missing)$",
-      "i",
-    ).test(normalized);
+    return (
+      new RegExp(
+        "^(?:no\\s+)?" +
+          alias +
+          "\\s+(?:is\\s+)?(?:required|missing|provided|specified|available|given)$",
+        "i",
+      ).test(normalized) ||
+      new RegExp(
+        "^" +
+          alias +
+          "\\s+(?:is\\s+)?(?:not\\s+provided|not\\s+specified|not\\s+available|missing)$",
+        "i",
+      ).test(normalized)
+    );
   });
 }
 function getRequiredWorkflowFields(workflow) {
@@ -321,8 +399,7 @@ class AgentRuntime {
         executionPolicy,
         tools: availableTools,
         toolChoice:
-          hasWorkflowTools &&
-          workflowCallRequired
+          hasWorkflowTools && workflowCallRequired
             ? {
                 type: "function",
                 function: { name: "n8n.trigger" },
@@ -393,9 +470,7 @@ class AgentRuntime {
           success: true,
           output: normalizedResponse.output,
           metadata: normalizedResponse.metadata,
-          ...(toolCallRecords.length > 0
-            ? { toolCalls: toolCallRecords }
-            : {}),
+          ...(toolCallRecords.length > 0 ? { toolCalls: toolCallRecords } : {}),
         };
       }
 
@@ -415,8 +490,7 @@ class AgentRuntime {
         if (successfulWorkflowExecution) {
           return {
             success: true,
-            output:
-              "The requested workflow action was completed successfully.",
+            output: "The requested workflow action was completed successfully.",
             metadata: {},
             toolCalls: toolCallRecords,
           };
@@ -568,8 +642,10 @@ class AgentRuntime {
                 currentValue === null ||
                 (typeof currentValue === "string" && !currentValue.trim());
 
-              const isPlaceholder =
-                isPlaceholderWorkflowValue(currentValue, field);
+              const isPlaceholder = isPlaceholderWorkflowValue(
+                currentValue,
+                field,
+              );
 
               if (isMissing || isPlaceholder) {
                 if (typeof value === "string" && value.trim()) {
@@ -654,11 +730,11 @@ class AgentRuntime {
             content: JSON.stringify(toolResult),
           });
         } catch (error) {
-          record.status =
-            error?.code === "TOOL_TIMEOUT" ? "TIMEOUT" : "FAILED";
+          record.status = error?.code === "TOOL_TIMEOUT" ? "TIMEOUT" : "FAILED";
 
           record.error = {
-            message: error?.userMessage || error?.message || "Tool execution failed",
+            message:
+              error?.userMessage || error?.message || "Tool execution failed",
             code: error?.code || null,
             category: error?.category || null,
             retryable: error?.retryable ?? false,

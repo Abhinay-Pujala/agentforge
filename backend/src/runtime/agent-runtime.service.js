@@ -706,6 +706,22 @@ class AgentRuntime {
 
         toolCallRecords.push(record);
 
+        if (inputRequired) {
+          // A workflow input failure is a deterministic handoff to the user.
+          // Do not ask the model to retry with guessed values. The execution
+          // controller will persist WAITING_FOR_INPUT and resume with the
+          // user's explicit value.
+          return {
+            success: true,
+            output:
+              "Additional information is required before this action can continue.",
+            metadata: {
+              inputRequired,
+            },
+            toolCalls: toolCallRecords,
+          };
+        }
+
       if (successfulWorkflowExecution && !inputRequired) {
         const finalMessages = [
           ...messages,
@@ -737,21 +753,6 @@ class AgentRuntime {
         };
       }
 
-        if (inputRequired) {
-          // A workflow input failure is a deterministic handoff to the user.
-          // Do not ask the model to retry with guessed values. The execution
-          // controller will persist WAITING_FOR_INPUT and resume with the
-          // user's explicit value.
-          return {
-            success: true,
-            output:
-              "Additional information is required before this action can continue.",
-            metadata: {
-              inputRequired,
-            },
-            toolCalls: toolCallRecords,
-          };
-        }
       }
     }
   }

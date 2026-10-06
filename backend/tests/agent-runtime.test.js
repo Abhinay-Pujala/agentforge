@@ -501,6 +501,133 @@ describe("AgentRuntime tool capabilities", () => {
       }),
     ).rejects.toThrow("Calculator failed");
   });
+
+  it("executes multiple independent workflow actions from one request", async () => {
+    const n8nTool = {
+      name: "n8n.trigger",
+      description: "Trigger a registered n8n workflow.",
+      schema: {
+        type: "object",
+        properties: {
+          workflowId: { type: "string" },
+          data: { type: "object", additionalProperties: true },
+        },
+        required: ["workflowId", "data"],
+      },
+      execute: vi
+        .fn()
+        .mockResolvedValueOnce({
+          success: true,
+          status: "SENT",
+          message: "Message sent successfully",
+        })
+        .mockResolvedValueOnce({
+          success: true,
+          status: "DRAFTED",
+          message: "Draft created successfully",
+        }),
+    };
+
+    const registry = new ToolRegistry();
+    registry.register(n8nTool);
+
+    const modelProvider = {
+      generate: vi
+        .fn()
+        .mockResolvedValueOnce({
+          output: null,
+          toolCalls: [
+            {
+              id: "send-call",
+              tool: "n8n.trigger",
+              arguments: {
+                workflowId: "workflow-gmail",
+                data: {
+                  action: "send",
+                  to: "abhinaypurimetla@gmail.com",
+                  message: "happy Dussehra",
+                },
+              },
+            },
+            {
+              id: "draft-call",
+              tool: "n8n.trigger",
+              arguments: {
+                workflowId: "workflow-gmail",
+                data: {
+                  action: "draft",
+                  to: "veranjaneyulu.1970@gmail.com",
+                  subject: "GATE 2027",
+                  message: "Information about GATE 2027",
+                },
+              },
+            },
+          ],
+        })
+        .mockResolvedValueOnce({
+          output: "The message was sent and the GATE 2027 email was drafted.",
+          toolCalls: [],
+          metadata: {},
+        }),
+    };
+
+    const runtime = new AgentRuntime(modelProvider, registry);
+
+    const result = await runtime.execute({
+      worker: {
+        model: "test-model",
+        instructions: "Use the Gmail workflow for email actions.",
+        enabledTools: ["n8n.trigger"],
+        configuration: {},
+      },
+      input:
+        "Send a message and draft an email about GATE 2027.",
+      context: {
+        workflowCatalog: [
+          {
+            id: "workflow-gmail",
+            name: "Gmail Agent",
+            description: "Send and draft Gmail messages.",
+            category: "email",
+            inputSchema: {
+              type: "object",
+              properties: {
+                action: { type: "string" },
+                to: { type: "string" },
+                subject: { type: "string" },
+                message: { type: "string" },
+              },
+              required: ["action", "to", "message"],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.output).toContain("sent");
+    expect(result.output).toContain("drafted");
+    expect(n8nTool.execute).toHaveBeenCalledTimes(2);
+    expect(n8nTool.execute).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        workflowId: "workflow-gmail",
+        data: expect.objectContaining({ action: "send" }),
+      }),
+      expect.any(Object),
+    );
+    expect(n8nTool.execute).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        workflowId: "workflow-gmail",
+        data: expect.objectContaining({ action: "draft" }),
+      }),
+      expect.any(Object),
+    );
+    expect(result.toolCalls).toHaveLength(2);
+    expect(modelProvider.generate).toHaveBeenCalledTimes(2);
+  });
+
 });
 
 

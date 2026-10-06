@@ -490,6 +490,9 @@ export const n8nTriggerTool = {
       data: sanitizedData,
       workerId: context.workerId,
       executionId: context.executionId,
+      ...(context.toolTimeoutMs
+        ? { timeoutMs: context.toolTimeoutMs }
+        : {}),
     });
 
     if (workflowResult?.status === "INPUT_REQUIRED") {

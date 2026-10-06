@@ -42,6 +42,9 @@ describe("execution policy", () => {
       provider: "openrouter",
       supportedModels: ["gemini-3.6-flash-lite", "openai/gpt-4o-mini"],
       timeoutMs: 30_000,
+      toolTimeouts: {
+        "n8n.trigger": 30_000,
+      },
       maxTokens: 2_000,
       maxCost: 0.05,
     });

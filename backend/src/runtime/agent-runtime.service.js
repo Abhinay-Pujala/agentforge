@@ -388,7 +388,6 @@ class AgentRuntime {
     let successfulWorkflowExecution = false;
     const toolCallRecords = [];
     const successfulWorkflowKeys = new Set();
-    const successfulWorkflowIds = new Set();
     let inputRequired = null;
 
     while (true) {
@@ -409,17 +408,14 @@ class AgentRuntime {
 
       const normalizedResponse = normalizeModelResponse(modelResponse);
 
-      // A workflow execution is a single side effect. Even if a model returns
-      // multiple n8n calls in one response, execute only the first one and
-      // finalize immediately after its result.
+      // A workflow request may contain multiple independent actions. Execute
+      // each registered workflow call sequentially while preventing exact
+      // duplicate workflow actions from running more than once.
       const toolCallsForExecution =
         hasWorkflowTools && workflowIntentDetected
-          ? (() => {
-              const firstWorkflowCall = normalizedResponse.toolCalls.find(
-                (call) => call.tool === "n8n.trigger",
-              );
-              return firstWorkflowCall ? [firstWorkflowCall] : [];
-            })()
+          ? normalizedResponse.toolCalls.filter(
+              (call) => call.tool === "n8n.trigger",
+            )
           : normalizedResponse.toolCalls;
 
       if (toolCallsForExecution.length === 0) {
@@ -515,51 +511,6 @@ class AgentRuntime {
       });
 
       for (const toolCall of toolCallsForExecution) {
-        const workflowId = toolCall.arguments?.workflowId ?? null;
-        const repeatedSuccessfulWorkflow =
-          toolCall.tool === "n8n.trigger" &&
-          workflowId &&
-          successfulWorkflowIds.has(workflowId);
-
-        if (repeatedSuccessfulWorkflow) {
-          messages.push({
-            role: "tool",
-            tool_call_id: toolCall.id,
-            content: JSON.stringify({
-              success: true,
-              status: "ALREADY_COMPLETED",
-              message:
-                "This workflow was already completed successfully during this execution. Do not execute it again.",
-            }),
-          });
-
-          messages.push({
-            role: "system",
-            content:
-              "The requested workflow has already completed successfully. Do not call any workflow again. Write a natural, concise final response that confirms what was completed and includes useful details from the completed workflow result. Do not mention internal workflow IDs, duplicate prevention, or tool execution.",
-          });
-
-          const finalModelResponse = await this.modelProvider.generate({
-            model: worker.model,
-            messages,
-            configuration: worker.configuration || {},
-            executionPolicy,
-            tools: [],
-          });
-
-          const normalizedFinalResponse =
-            normalizeModelResponse(finalModelResponse);
-
-          return {
-            success: true,
-            output:
-              normalizedFinalResponse.output ||
-              "Done — the requested action was completed successfully.",
-            metadata: normalizedFinalResponse.metadata,
-            toolCalls: toolCallRecords,
-          };
-        }
-
         const record = createToolCallRecord(toolCall);
         const startedAt = Date.now();
 
@@ -662,34 +613,35 @@ class AgentRuntime {
             };
           }
 
-          // A successful registered workflow is a completed side effect for
-          // this execution. Do not let the model repeatedly trigger the same
-          // workflow with slightly different arguments and exhaust the round
-          // budget (for example, repeatedly sending the same email).
+          // Duplicate protection is based on the normalized workflow action,
+          // so different actions can use the same workflow while an exact
+          // repeated action is executed only once.
+          const workflowExecutionKey = getWorkflowExecutionKey(toolCall);
           const duplicateSuccessfulWorkflow =
             workflowExecutionKey &&
             successfulWorkflowKeys.has(workflowExecutionKey);
 
-          const repeatedSuccessfulWorkflow =
-            workflowId && successfulWorkflowIds.has(workflowId);
-
           let toolResult;
 
-          toolResult =
-            duplicateSuccessfulWorkflow || repeatedSuccessfulWorkflow
-              ? {
-                  success: true,
-                  status: "ALREADY_COMPLETED",
-                  message:
-                    "This workflow was already completed successfully during this execution. Do not execute it again. Continue the original request using its existing result.",
-                }
-              : await this.toolExecutionService.execute({
+          if (duplicateSuccessfulWorkflow) {
+            toolResult = {
+              success: true,
+              status: "ALREADY_COMPLETED",
+              message:
+                "This workflow action was already completed successfully during this execution. Do not execute it again.",
+            };
+          } else {
+            toolResult = await this.toolExecutionService.execute({
                   toolName: toolCall.tool,
                   arguments: toolCall.arguments,
-                  timeoutMs: executionPolicy?.toolTimeoutMs ?? 10_000,
+                  timeoutMs:
+                    executionPolicy?.toolTimeouts?.[toolCall.tool] ??
+                    executionPolicy?.toolTimeoutMs ??
+                    10_000,
                   permissions: worker.permissions || [],
                   context,
                 });
+          }
 
           record.result = toolResult;
           record.status =
@@ -711,6 +663,9 @@ class AgentRuntime {
             toolResult?.status !== "INPUT_REQUIRED"
           ) {
             successfulWorkflowExecution = true;
+            if (workflowExecutionKey) {
+              successfulWorkflowKeys.add(workflowExecutionKey);
+            }
           }
 
           if (toolResult?.status === "INPUT_REQUIRED") {
@@ -751,72 +706,6 @@ class AgentRuntime {
 
         toolCallRecords.push(record);
 
-        if (
-          toolCall.tool === "n8n.trigger" &&
-          record.result?.success === true &&
-          record.result?.status !== "INPUT_REQUIRED"
-        ) {
-          const finalMessages = [
-            ...messages,
-            {
-              role: "system",
-              content:
-                "The registered workflow has completed successfully. Do not call any workflow again. Respond with a concise natural confirmation of the completed action.",
-            },
-          ];
-
-          const finalModelResponse = await this.modelProvider.generate({
-            model: worker.model,
-            messages: finalMessages,
-            configuration: worker.configuration || {},
-            executionPolicy,
-            tools: [],
-          });
-
-          const normalizedFinalResponse =
-            normalizeModelResponse(finalModelResponse);
-
-          return {
-            success: true,
-            output:
-              normalizedFinalResponse.output ||
-              "The requested workflow action was completed successfully.",
-            metadata: normalizedFinalResponse.metadata,
-            toolCalls: toolCallRecords,
-          };
-        }
-
-        // A repeated successful workflow is already complete. Stop the
-        // orchestration loop instead of allowing the model to call the same
-        // external side effect until the round limit is exhausted.
-        if (record.result?.status === "ALREADY_COMPLETED") {
-          messages.push({
-            role: "system",
-            content:
-              "The requested workflow has already completed successfully. Do not call any workflow again. Write the final response to the user naturally and concisely. Explain what action was completed and include useful details available in the workflow results, such as the recipient or other relevant result data. Never claim an action that was not completed.",
-          });
-
-          const finalModelResponse = await this.modelProvider.generate({
-            model: worker.model,
-            messages,
-            configuration: worker.configuration || {},
-            executionPolicy,
-            tools: [],
-          });
-
-          const normalizedFinalResponse =
-            normalizeModelResponse(finalModelResponse);
-
-          return {
-            success: true,
-            output:
-              normalizedFinalResponse.output ||
-              "The requested workflow action was completed successfully.",
-            metadata: normalizedFinalResponse.metadata,
-            toolCalls: toolCallRecords,
-          };
-        }
-
         if (inputRequired) {
           // A workflow input failure is a deterministic handoff to the user.
           // Do not ask the model to retry with guessed values. The execution
@@ -832,6 +721,38 @@ class AgentRuntime {
             toolCalls: toolCallRecords,
           };
         }
+
+      if (successfulWorkflowExecution && !inputRequired) {
+        const finalMessages = [
+          ...messages,
+          {
+            role: "system",
+            content:
+              "All requested workflow actions have completed successfully. Do not call any workflow again. Respond with a concise natural summary of each completed action, including useful details from the workflow results. Never claim an action that was not completed.",
+          },
+        ];
+
+        const finalModelResponse = await this.modelProvider.generate({
+          model: worker.model,
+          messages: finalMessages,
+          configuration: worker.configuration || {},
+          executionPolicy,
+          tools: [],
+        });
+
+        const normalizedFinalResponse =
+          normalizeModelResponse(finalModelResponse);
+
+        return {
+          success: true,
+          output:
+            normalizedFinalResponse.output ||
+            "The requested workflow actions were completed successfully.",
+          metadata: normalizedFinalResponse.metadata,
+          toolCalls: toolCallRecords,
+        };
+      }
+
       }
     }
   }

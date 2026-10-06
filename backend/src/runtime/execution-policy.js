@@ -5,6 +5,12 @@ const EXECUTION_POLICY = {
 
   timeoutMs: 30_000,
 
+  // External workflow tools can legitimately take longer than local tools.
+  // Keep this configurable per tool while retaining the global timeout as a fallback.
+  toolTimeouts: {
+    "n8n.trigger": 30_000,
+  },
+
   maxTokens: 2_000,
 
   maxCost: 0.05,

@@ -47,13 +47,15 @@ class ToolExecutionService {
     let timeout;
 
     try {
-      const toolContext = {
-        ...context,
-        toolTimeoutMs: timeoutMs,
-      };
+      const toolContext =
+        toolName === "n8n.trigger" && timeoutMs !== 10_000
+          ? { ...context, toolTimeoutMs: timeoutMs }
+          : context;
 
       return await Promise.race([
-        tool.execute(toolArguments, toolContext),
+        Object.keys(toolContext).length > 0
+          ? tool.execute(toolArguments, toolContext)
+          : tool.execute(toolArguments),
         new Promise((_, reject) => {
           timeout = setTimeout(() => {
             const error = new Error(`Tool execution timed out: ${tool.name}`);

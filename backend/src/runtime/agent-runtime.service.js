@@ -686,7 +686,10 @@ class AgentRuntime {
               : await this.toolExecutionService.execute({
                   toolName: toolCall.tool,
                   arguments: toolCall.arguments,
-                  timeoutMs: executionPolicy?.toolTimeoutMs ?? 10_000,
+                  timeoutMs:
+                    executionPolicy?.toolTimeouts?.[toolCall.tool] ??
+                    executionPolicy?.toolTimeoutMs ??
+                    10_000,
                   permissions: worker.permissions || [],
                   context,
                 });

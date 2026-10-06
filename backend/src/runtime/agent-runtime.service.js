@@ -515,7 +515,6 @@ class AgentRuntime {
         const startedAt = Date.now();
 
         try {
-          const workflowExecutionKey = getWorkflowExecutionKey(toolCall);
           let workflowId = toolCall.arguments?.workflowId ?? null;
 
           // A dedicated worker with one registered workflow is deterministic.
@@ -722,6 +721,8 @@ class AgentRuntime {
           };
         }
 
+      }
+
       if (successfulWorkflowExecution && !inputRequired) {
         const finalMessages = [
           ...messages,
@@ -751,8 +752,6 @@ class AgentRuntime {
           metadata: normalizedFinalResponse.metadata,
           toolCalls: toolCallRecords,
         };
-      }
-
       }
     }
   }

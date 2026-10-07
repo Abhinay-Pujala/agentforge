@@ -86,7 +86,45 @@ describe("n8n service", () => {
     });
   });
 
+  it("honors explicit INPUT_REQUIRED status and preserves its message/data", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({
+        success: true,
+        status: "INPUT_REQUIRED",
+        message: "I found the matching email. What should I reply?",
+        data: {
+          emailId: "email-123",
+          threadId: "thread-456",
+        },
+      }),
+    }));
 
+    await expect(triggerN8nWorkflow(args)).resolves.toMatchObject({
+      success: true,
+      status: "INPUT_REQUIRED",
+      message: "I found the matching email. What should I reply?",
+      data: {
+        emailId: "email-123",
+        threadId: "thread-456",
+      },
+    });
+  });
+
+  it("normalizes plain-text INPUT_REQUIRED responses from n8n", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => "INPUT_REQUIRED: Please provide the reply message.",
+    }));
+
+    await expect(triggerN8nWorkflow(args)).resolves.toMatchObject({
+      success: true,
+      status: "INPUT_REQUIRED",
+      message: "Please provide the reply message.",
+    });
+  });
 
   it("preserves explicit workflow failures returned with HTTP 200", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
@@ -107,6 +145,30 @@ describe("n8n service", () => {
       error: {
         code: "GMAIL_AUTH_REQUIRED",
         message: "Gmail authorization is required.",
+      },
+    });
+  });
+
+  it("honors an explicit FAILED status returned with HTTP 200", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({
+        success: true,
+        status: "FAILED",
+        error: {
+          code: "GMAIL_OPERATION_FAILED",
+          message: "The Gmail operation failed.",
+        },
+      }),
+    }));
+
+    await expect(triggerN8nWorkflow(args)).resolves.toMatchObject({
+      success: false,
+      status: "FAILED",
+      error: {
+        code: "GMAIL_OPERATION_FAILED",
+        message: "The Gmail operation failed.",
       },
     });
   });

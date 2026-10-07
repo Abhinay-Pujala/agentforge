@@ -115,7 +115,7 @@ export default function EditWorkflow() {
         {error && <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">{error}</div>}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+          <section className="glass-panel p-6">
             <h2 className="text-lg font-semibold text-white">Workflow Information</h2>
             <p className="mt-1 text-sm text-slate-400">Update the metadata used to discover and assign this workflow.</p>
             <div className="mt-6 space-y-5">
@@ -128,7 +128,7 @@ export default function EditWorkflow() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+          <section className="glass-panel p-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-white">n8n Connection</h2>
@@ -145,13 +145,13 @@ export default function EditWorkflow() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+          <section className="glass-panel p-6">
             <h2 className="text-lg font-semibold text-white">Permissions</h2>
             <p className="mt-1 text-sm text-slate-400">Comma-separated permissions associated with this workflow.</p>
             <div className="mt-6"><input id="permissions" name="permissions" value={formData.permissions} onChange={handleChange} placeholder="n8n.trigger" className={inputClass} /></div>
           </section>
 
-          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+          <section className="glass-panel p-6">
             <h2 className="text-lg font-semibold text-white">Input Schema</h2>
             <p className="mt-1 text-sm text-slate-400">Define the structured input Workers must provide.</p>
             <div className="mt-6"><textarea id="inputSchema" name="inputSchema" value={formData.inputSchema} onChange={handleChange} rows={12} className={inputClass + " font-mono leading-6"} /></div>

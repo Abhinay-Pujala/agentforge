@@ -131,21 +131,21 @@ export default function Workers() {
             <p className="text-sm text-red-400">{error}</p>
           </div>
         ) : workers.length === 0 ? (
-          <div className="flex min-h-80 flex-col items-center justify-center rounded-2xl border border-slate-800 bg-slate-900 px-6 text-center">
+          <div className="glass-panel flex min-h-80 flex-col items-center justify-center px-6 text-center">
             <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-500/10">
-              <Bot size={28} className="text-indigo-400" />
+              <Bot size={28} className="text-indigo-500" />
             </div>
 
-            <h2 className="text-lg font-semibold text-white">No workers yet</h2>
+            <h2 className="text-lg font-semibold text-slate-900">No workers yet</h2>
 
-            <p className="mt-2 max-w-md text-sm text-slate-400">
+            <p className="mt-2 max-w-md text-sm text-slate-600">
               Create your first AI Worker to start building your intelligent
               workforce.
             </p>
 
             <button
               onClick={() => navigate("/dashboard/workers/new")}
-              className="mt-5 flex items-center gap-2 rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-medium text-slate-200 transition-all duration-200 hover:border-indigo-500/50 hover:bg-slate-800 hover:text-white cursor-pointer"
+              className="mt-5 flex items-center gap-2 rounded-xl border border-slate-300 bg-white/55 px-4 py-2.5 text-sm font-medium text-slate-700 transition-all duration-200 hover:border-indigo-300 hover:bg-white/70 hover:text-slate-900 cursor-pointer"
             >
               <Plus size={17} />
               Create your first worker
@@ -156,7 +156,7 @@ export default function Workers() {
             {workers.map((worker) => (
               <div
                 key={worker._id}
-                className="rounded-2xl border border-white/10 bg-slate-900 p-6 transition-all duration-200 hover:border-indigo-500/30"
+                className="glass-panel p-6 transition-all duration-200 hover:border-indigo-300/60 hover:bg-white/60"
               >
                 <div
                   onClick={() => navigate(`/dashboard/workers/${worker._id}`)}

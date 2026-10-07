@@ -44,10 +44,11 @@ export default function Dashboard() {
 
   return (
     <DashboardLayout title="Dashboard">
-      <div className="mx-auto max-w-7xl space-y-6">
+      <div className="space-y-6">
         <WelcomeCard />
+
         {loading ? (
-          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6 text-sm text-slate-400">
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-6 text-sm text-slate-400">
             Loading workspace activity...
           </div>
         ) : (

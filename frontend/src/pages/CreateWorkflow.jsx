@@ -135,7 +135,7 @@ export default function CreateWorkflow() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+          <section className="dashboard-panel p-5 sm:p-6">
             <div className="mb-6">
               <h2 className="text-lg font-semibold text-white">
                 Workflow Information
@@ -161,7 +161,7 @@ export default function CreateWorkflow() {
                   onChange={handleChange}
                   maxLength={100}
                   placeholder="e.g. Send Gmail Notification"
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-indigo-500"
+                  className="field-input"
                 />
               </div>
 
@@ -199,7 +199,7 @@ export default function CreateWorkflow() {
                     onChange={handleChange}
                     maxLength={50}
                     placeholder="automation"
-                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-indigo-500"
+                    className="field-input"
                   />
                 </div>
 
@@ -225,7 +225,7 @@ export default function CreateWorkflow() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+          <section className="dashboard-panel p-5 sm:p-6">
             <div className="mb-6">
               <h2 className="text-lg font-semibold text-white">
                 n8n Connection
@@ -250,7 +250,7 @@ export default function CreateWorkflow() {
                 value={formData.webhookUrl}
                 onChange={handleChange}
                 placeholder="https://your-n8n-host/webhook/..."
-                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-indigo-500"
+                className="field-input"
               />
               <p className="mt-2 text-xs text-slate-500">
                 Use the production or test webhook URL that AgentForge is
@@ -259,7 +259,7 @@ export default function CreateWorkflow() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+          <section className="dashboard-panel p-5 sm:p-6">
             <div className="mb-6">
               <h2 className="text-lg font-semibold text-white">
                 Permissions
@@ -275,11 +275,11 @@ export default function CreateWorkflow() {
               value={formData.permissions}
               onChange={handleChange}
               placeholder="n8n.trigger"
-              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-indigo-500"
+              className="field-input"
             />
           </section>
 
-          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+          <section className="dashboard-panel p-5 sm:p-6">
             <div className="mb-6">
               <h2 className="text-lg font-semibold text-white">
                 Input Schema

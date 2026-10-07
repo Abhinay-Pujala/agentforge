@@ -208,16 +208,16 @@ export default function Workflows() {
         )}
 
         {isLoading ? (
-          <div className="flex items-center justify-center rounded-2xl border border-slate-800 bg-slate-900 py-16 text-sm text-slate-400">
+          <div className="glass-panel flex items-center justify-center py-16 text-sm text-slate-600">
             <Loader2 size={18} className="mr-3 animate-spin" />
             Loading workflow registry...
           </div>
         ) : workflows.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900 px-6 py-16 text-center">
-            <h2 className="text-lg font-semibold text-white">
+          <div className="glass-panel border-dashed px-6 py-16 text-center">
+            <h2 className="text-lg font-semibold text-slate-900">
               No workflows registered
             </h2>
-            <p className="mx-auto mt-2 max-w-lg text-sm text-slate-400">
+            <p className="mx-auto mt-2 max-w-lg text-sm text-slate-600">
               Register your existing n8n webhook workflow here before assigning
               it to a Worker.
             </p>
@@ -239,7 +239,7 @@ export default function Workflows() {
               return (
                 <div
                   key={workflow._id}
-                  className="rounded-2xl border border-slate-800 bg-slate-900 p-5"
+                  className="glass-panel p-5"
                 >
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0">

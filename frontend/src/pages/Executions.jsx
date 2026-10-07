@@ -110,10 +110,10 @@ export default function Executions() {
   return (
     <DashboardLayout title="Executions">
       <div className="mx-auto max-w-6xl space-y-6">
-        <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
-          <h1 className="text-2xl font-bold text-white">Execution History</h1>
+        <section className="glass-panel p-6">
+          <h1 className="text-2xl font-bold text-slate-900">Execution History</h1>
 
-          <p className="mt-2 text-sm text-slate-400">
+          <p className="mt-2 text-sm text-slate-600">
             View and monitor all worker executions.
           </p>
         </section>
@@ -246,10 +246,10 @@ export default function Executions() {
         ) : (
           <div className="space-y-4">
             {executions.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900 py-16 text-center">
-                <Clock size={32} className="mx-auto mb-3 text-slate-600" />
+              <div className="glass-panel border-dashed py-16 text-center">
+                    <Clock size={32} className="mx-auto mb-3 text-slate-500" />
 
-                <p className="text-sm font-medium text-slate-300">
+                    <p className="text-sm font-medium text-slate-700">
                   No executions found
                 </p>
 
@@ -267,7 +267,7 @@ export default function Executions() {
                       onClick={() =>
                         navigate(`/dashboard/executions/${execution._id}`)
                       }
-                      className="w-full cursor-pointer rounded-2xl border border-slate-800 bg-slate-900 p-5 text-left transition-all hover:border-indigo-500 hover:bg-slate-800/50"
+                      className="w-full cursor-pointer rounded-[26px] border border-white/70 bg-white/45 p-5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.7),0_12px_28px_rgba(15,23,42,0.04)] backdrop-blur-xl transition-all hover:border-indigo-300/60 hover:bg-white/60"
                     >
                       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-w-0 flex flex-1 items-start gap-4">

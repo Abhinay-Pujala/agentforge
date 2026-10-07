@@ -24,12 +24,12 @@ export default function Tools() {
       <div className="mx-auto max-w-6xl space-y-8">
         <div>
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-indigo-500/20 bg-indigo-500/10">
-              <Wrench className="text-indigo-400" size={22} />
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-indigo-300/60 bg-indigo-500/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]">
+              <Wrench className="text-indigo-600" size={22} />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white">Tools</h1>
-              <p className="mt-1 text-sm text-slate-400">
+              <h1 className="text-2xl font-bold text-slate-900">Tools</h1>
+              <p className="mt-1 text-sm text-slate-600">
                 Capabilities available to Workers at runtime.
               </p>
             </div>
@@ -42,29 +42,29 @@ export default function Tools() {
             return (
               <article
                 key={tool.name}
-                className="rounded-2xl border border-slate-800 bg-slate-900 p-6 transition hover:border-indigo-500/30"
+                className="glass-panel p-6"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-800">
-                      <Icon size={21} className="text-indigo-400" />
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/70 bg-white/55 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+                      <Icon size={21} className="text-indigo-600" />
                     </div>
                     <div>
-                      <h2 className="font-semibold text-white">{tool.label}</h2>
+                      <h2 className="font-semibold text-slate-900">{tool.label}</h2>
                       <code className="text-xs text-slate-500">{tool.name}</code>
                     </div>
                   </div>
-                  <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1.5 text-xs font-medium text-emerald-400">
+                  <span className="flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-medium text-emerald-700">
                     <CheckCircle2 size={14} />
                     Available
                   </span>
                 </div>
 
-                <p className="mt-5 text-sm leading-6 text-slate-400">{tool.description}</p>
+                <p className="mt-5 text-sm leading-6 text-slate-600">{tool.description}</p>
 
-                <div className="mt-5 border-t border-slate-800 pt-4">
+                <div className="mt-5 border-t border-white/70 pt-4">
                   <p className="mb-2 text-xs text-slate-500">Permission</p>
-                  <code className="rounded-lg bg-slate-800 px-3 py-2 text-xs text-indigo-300">
+                  <code className="rounded-lg border border-white/70 bg-white/50 px-3 py-2 text-xs text-indigo-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]">
                     {tool.permission}
                   </code>
                 </div>

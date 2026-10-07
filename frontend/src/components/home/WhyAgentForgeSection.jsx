@@ -66,7 +66,7 @@ export default function WhyAgentForgeSection() {
               return (
                 <div
                   key={reason.title}
-                  className="rounded-2xl border border-white/10 bg-white/3 p-6 transition hover:border-indigo-400/20 hover:bg-white/5"
+                  className="glass-card p-5 sm:p-6"
                 >
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400">
                     <Icon size={20} />

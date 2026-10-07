@@ -95,7 +95,7 @@ export default function ExecutionDetails() {
         </button>
 
         {/* Header */}
-        <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+        <section className="glass-panel p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-sm text-slate-400">
@@ -141,7 +141,7 @@ export default function ExecutionDetails() {
 
         {/* Overview */}
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+          <div className="glass-panel p-5">
             <div className="flex items-center gap-2 text-slate-400">
               <Cpu size={16} />
               <span className="text-xs">Model</span>
@@ -152,7 +152,7 @@ export default function ExecutionDetails() {
             </p>
           </div>
 
-          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+          <div className="glass-panel p-5">
             <div className="flex items-center gap-2 text-slate-400">
               <Timer size={16} />
               <span className="text-xs">Duration</span>
@@ -166,7 +166,7 @@ export default function ExecutionDetails() {
             </p>
           </div>
 
-          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+          <div className="glass-panel p-5">
             <div className="flex items-center gap-2 text-slate-400">
               <Clock size={16} />
               <span className="text-xs">Started</span>
@@ -179,7 +179,7 @@ export default function ExecutionDetails() {
             </p>
           </div>
 
-          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+          <div className="glass-panel p-5">
             <div className="flex items-center gap-2 text-slate-400">
               <Clock size={16} />
               <span className="text-xs">Completed</span>
@@ -194,7 +194,7 @@ export default function ExecutionDetails() {
         </section>
 
         {/* Input */}
-        <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+        <section className="glass-panel p-6">
           <h2 className="text-lg font-semibold text-white">Input</h2>
 
           <div className="mt-4 whitespace-pre-wrap rounded-xl bg-slate-950 p-4 text-sm leading-6 text-slate-300">
@@ -203,7 +203,7 @@ export default function ExecutionDetails() {
         </section>
 
         {/* Output */}
-        <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+        <section className="glass-panel p-6">
           <h2 className="text-lg font-semibold text-white">Output</h2>
 
           <div className="mt-4 whitespace-pre-wrap rounded-xl bg-slate-950 p-4 text-sm leading-6 text-slate-300">
@@ -213,7 +213,7 @@ export default function ExecutionDetails() {
 
         {/* Tool Calls */}
         {execution.toolCalls?.length > 0 && (
-          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+          <section className="glass-panel p-6">
             <div className="flex items-center gap-2">
               <Wrench size={18} className="text-indigo-400" />
 
@@ -362,7 +362,7 @@ export default function ExecutionDetails() {
         )}
 
         {/* Usage */}
-        <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+        <section className="glass-panel p-6">
           <div className="flex items-center gap-2">
             <Coins size={18} className="text-indigo-400" />
 

@@ -62,14 +62,14 @@ export default function HowItWorksSection() {
           {/* Connector */}
           <div className="absolute left-[12.5%] right-[12.5%] top-7 hidden h-px bg-linear-to-r from-transparent via-indigo-400/30 to-transparent lg:block" />
 
-          <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {steps.map((step) => {
               const Icon = step.icon;
 
               return (
-                <div key={step.number} className="relative text-center">
+                <div key={step.number} className="glass-card relative px-5 py-7 text-center sm:px-4">
                   {/* Icon */}
-                  <div className="relative mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-indigo-400/20 bg-slate-900 text-indigo-400 shadow-lg shadow-indigo-500/5">
+                  <div className="relative mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-indigo-200 bg-white/70 text-indigo-600 shadow-[0_10px_24px_rgba(79,70,229,0.12)]">
                     <Icon size={22} />
                   </div>
 

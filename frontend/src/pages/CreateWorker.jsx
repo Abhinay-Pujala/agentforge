@@ -221,7 +221,7 @@ export default function CreateWorker() {
           <button
             type="button"
             onClick={() => navigate("/dashboard/workers")}
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-800 text-slate-400 transition-all duration-200 hover:border-slate-700 hover:bg-slate-800 hover:text-white cursor-pointer"
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-800 bg-slate-900/80 text-slate-400 transition-all duration-200 hover:border-slate-700 hover:bg-slate-800 hover:text-white"
             aria-label="Back to workers"
           >
             <ArrowLeft size={18} />
@@ -238,14 +238,14 @@ export default function CreateWorker() {
 
         {/* Error */}
         {error && (
-          <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+          <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Basic Information */}
-          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+          <section className="dashboard-panel p-5 sm:p-6">
             <div className="mb-6">
               <h2 className="text-lg font-semibold text-white">
                 Basic Information
@@ -274,7 +274,7 @@ export default function CreateWorker() {
                   onChange={handleChange}
                   maxLength={100}
                   placeholder="e.g. Customer Support Worker"
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-indigo-500"
+                  className="field-input"
                 />
 
                 <p className="mt-2 text-xs text-slate-500">
@@ -299,7 +299,7 @@ export default function CreateWorker() {
                   rows={3}
                   maxLength={300}
                   placeholder="Briefly describe what this worker does."
-                  className="w-full resize-none rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-indigo-500"
+                  className="field-input resize-none"
                 />
 
                 <p className="mt-2 text-xs text-slate-500">
@@ -310,7 +310,7 @@ export default function CreateWorker() {
           </section>
 
           {/* Instructions */}
-          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+          <section className="dashboard-panel p-5 sm:p-6">
             <div className="mb-6">
               <h2 className="text-lg font-semibold text-white">Instructions</h2>
 
@@ -334,13 +334,13 @@ export default function CreateWorker() {
                 onChange={handleChange}
                 rows={9}
                 placeholder="You are a customer support worker. Your job is to..."
-                className="w-full resize-none rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm leading-6 text-white outline-none transition-all placeholder:text-slate-600 focus:border-indigo-500"
+                className="field-input resize-none leading-6"
               />
             </div>
           </section>
 
           {/* Model */}
-          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+          <section className="dashboard-panel p-5 sm:p-6">
             <div className="mb-6">
               <h2 className="text-lg font-semibold text-white">Model</h2>
 
@@ -364,13 +364,13 @@ export default function CreateWorker() {
                 value={formData.model}
                 onChange={handleChange}
                 placeholder="e.g. gemini-3.6-flash-lite"
-                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none transition-all placeholder:text-slate-600 focus:border-indigo-500"
+                className="field-input"
               />
             </div>
           </section>
 
           {/* Configuration */}
-          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+          <section className="dashboard-panel p-5 sm:p-6">
             <div className="mb-6">
               <h2 className="text-lg font-semibold text-white">
                 Configuration
@@ -408,7 +408,7 @@ export default function CreateWorker() {
           </section>
 
           {/* Tools & Permissions */}
-          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+          <section className="dashboard-panel p-5 sm:p-6">
             <div className="mb-6">
               <h2 className="text-lg font-semibold text-white">
                 Tools & Permissions
@@ -476,7 +476,7 @@ export default function CreateWorker() {
 
           {/* Registered n8n Workflows */}
           {formData.enabledTools.includes("n8n.trigger") && (
-            <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+            <section className="dashboard-panel p-5 sm:p-6">
               <div className="mb-6">
                 <h2 className="text-lg font-semibold text-white">
                   Assigned n8n Workflows
@@ -559,7 +559,7 @@ export default function CreateWorker() {
           )}
 
           {/* Status */}
-          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+          <section className="dashboard-panel p-5 sm:p-6">
             <div className="flex items-center justify-between gap-6">
               <div>
                 <h2 className="text-lg font-semibold text-white">
@@ -576,7 +576,7 @@ export default function CreateWorker() {
                 name="status"
                 value={formData.status}
                 onChange={handleChange}
-                className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none transition-all focus:border-indigo-500"
+                className="field-input max-w-xs"
               >
                 <option value="enabled">Enabled</option>
                 <option value="disabled">Disabled</option>
@@ -585,12 +585,12 @@ export default function CreateWorker() {
           </section>
 
           {/* Actions */}
-          <div className="flex items-center justify-end gap-3 pb-6">
+          <div className="flex flex-col-reverse gap-3 pb-6 sm:flex-row sm:justify-end">
             <button
               type="button"
               onClick={() => navigate("/dashboard/workers")}
               disabled={isSubmitting}
-              className="rounded-xl border border-slate-700 px-5 py-2.5 text-sm font-medium text-slate-300 transition-all hover:bg-slate-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+              className="btn-secondary"
             >
               Cancel
             </button>
@@ -598,7 +598,7 @@ export default function CreateWorker() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white transition-all hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+              className="btn-primary"
             >
               {isSubmitting && <Loader2 size={17} className="animate-spin" />}
 

@@ -11,7 +11,7 @@ export default function Hero() {
   };
 
   return (
-    <section className="relative min-h-screen overflow-hidden bg-slate-950 pt-32">
+    <section className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_center,_rgba(99,102,241,0.18),_transparent_35%)] pt-32">
       {/* Background glow */}
       <div className="pointer-events-none absolute left-1/2 top-20 h-96 w-96 -translate-x-1/2 rounded-full bg-indigo-500/20 blur-[120px]" />
 
@@ -74,7 +74,7 @@ export default function Hero() {
           <div className="relative hidden lg:block">
             <div className="absolute -inset-8 rounded-4xl bg-indigo-500/10 blur-3xl" />
 
-            <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-900/90 shadow-2xl shadow-black/40">
+            <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-slate-900/65 shadow-[0_32px_80px_rgba(15,23,42,0.5)] backdrop-blur-xl">
               {/* Window header */}
               <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
                 <div className="flex gap-2">

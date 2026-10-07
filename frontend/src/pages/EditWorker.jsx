@@ -183,21 +183,21 @@ export default function EditWorker() {
         {error && <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">{error}</div>}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+          <section className="dashboard-panel p-5 sm:p-6">
             <h2 className="mb-6 text-lg font-semibold text-white">Basic Information</h2>
             <div className="space-y-5">
-              <div><label htmlFor="name" className="mb-2 block text-sm font-medium text-slate-200">Worker Name *</label><input id="name" name="name" value={formData.name} onChange={handleChange} maxLength={100} className={inputClass} /></div>
-              <div><label htmlFor="description" className="mb-2 block text-sm font-medium text-slate-200">Description *</label><textarea id="description" name="description" value={formData.description} onChange={handleChange} rows={3} maxLength={300} className={inputClass} /></div>
+              <div><label htmlFor="name" className="mb-2 block text-sm font-medium text-slate-200">Worker Name *</label><input id="name" name="name" value={formData.name} onChange={handleChange} maxLength={100} className="field-input" /></div>
+              <div><label htmlFor="description" className="mb-2 block text-sm font-medium text-slate-200">Description *</label><textarea id="description" name="description" value={formData.description} onChange={handleChange} rows={3} maxLength={300} className="field-input" /></div>
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6"><h2 className="mb-6 text-lg font-semibold text-white">Instructions</h2><textarea name="instructions" value={formData.instructions} onChange={handleChange} rows={9} className={inputClass + " leading-6"} /></section>
+          <section className="dashboard-panel p-5 sm:p-6"><h2 className="mb-6 text-lg font-semibold text-white">Instructions</h2><textarea name="instructions" value={formData.instructions} onChange={handleChange} rows={9} className="field-input leading-6" /></section>
 
-          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6"><h2 className="mb-6 text-lg font-semibold text-white">Model</h2><input name="model" value={formData.model} onChange={handleChange} className={inputClass + " font-mono"} /></section>
+          <section className="dashboard-panel p-5 sm:p-6"><h2 className="mb-6 text-lg font-semibold text-white">Model</h2><input name="model" value={formData.model} onChange={handleChange} className="field-input font-mono" /></section>
 
-          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6"><h2 className="mb-2 text-lg font-semibold text-white">Configuration</h2><p className="mb-6 text-sm text-slate-400">JSON configuration object.</p><textarea name="configuration" value={formData.configuration} onChange={handleChange} rows={8} className={inputClass + " font-mono leading-6"} /></section>
+          <section className="dashboard-panel p-5 sm:p-6"><h2 className="mb-2 text-lg font-semibold text-white">Configuration</h2><p className="mb-6 text-sm text-slate-400">JSON configuration object.</p><textarea name="configuration" value={formData.configuration} onChange={handleChange} rows={8} className="field-input font-mono leading-6" /></section>
 
-          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+          <section className="dashboard-panel p-5 sm:p-6">
             <div className="mb-6"><h2 className="text-lg font-semibold text-white">Tools & Permissions</h2><p className="mt-1 text-sm text-slate-400">Choose the tools this worker can use.</p></div>
             <div className="space-y-3">
               {AVAILABLE_TOOLS.map((tool) => {
@@ -211,7 +211,7 @@ export default function EditWorker() {
           </section>
 
           {formData.enabledTools.includes("n8n.trigger") && (
-            <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+            <section className="dashboard-panel p-5 sm:p-6">
               <div className="mb-6"><h2 className="text-lg font-semibold text-white">Registered Workflows</h2><p className="mt-1 text-sm text-slate-400">Choose the registered workflows this Worker is allowed to trigger.</p></div>
               {workflows.length === 0 ? <p className="rounded-xl border border-dashed border-slate-700 bg-slate-950 p-4 text-sm text-slate-400">No enabled workflows are registered.</p> : <div className="space-y-3">
                 {workflows.map((workflow) => {
@@ -225,13 +225,11 @@ export default function EditWorker() {
             </section>
           )}
 
-          <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6"><div className="flex items-center justify-between"><div><h2 className="text-lg font-semibold text-white">Worker Status</h2><p className="mt-1 text-sm text-slate-400">Enable or disable this worker.</p></div><select name="status" value={formData.status} onChange={handleChange} className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none focus:border-indigo-500"><option value="enabled">Enabled</option><option value="disabled">Disabled</option></select></div></section>
+          <section className="dashboard-panel p-5 sm:p-6"><div className="flex items-center justify-between"><div><h2 className="text-lg font-semibold text-white">Worker Status</h2><p className="mt-1 text-sm text-slate-400">Enable or disable this worker.</p></div><select name="status" value={formData.status} onChange={handleChange} className="field-input max-w-xs"><option value="enabled">Enabled</option><option value="disabled">Disabled</option></select></div></section>
 
-          <div className="flex justify-end gap-3 pb-6"><button type="button" onClick={() => navigate(`/dashboard/workers/${id}`)} disabled={isSubmitting} className="rounded-xl border border-slate-700 px-5 py-2.5 text-sm text-slate-300 hover:bg-slate-800 cursor-pointer">Cancel</button><button type="submit" disabled={isSubmitting} className="flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-60 cursor-pointer">{isSubmitting && <Loader2 size={17} className="animate-spin" />}{isSubmitting ? "Saving..." : "Save Changes"}</button></div>
+          <div className="flex flex-col-reverse gap-3 pb-6 sm:flex-row sm:justify-end"><button type="button" onClick={() => navigate(`/dashboard/workers/${id}`)} disabled={isSubmitting} className="btn-secondary">Cancel</button><button type="submit" disabled={isSubmitting} className="btn-primary">{isSubmitting && <Loader2 size={17} className="animate-spin" />}{isSubmitting ? "Saving..." : "Save Changes"}</button></div>
         </form>
       </div>
     </DashboardLayout>
   );
 }
-
-const inputClass = "w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-indigo-500";

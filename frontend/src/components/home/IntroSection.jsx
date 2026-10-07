@@ -50,7 +50,7 @@ export default function IntroSection() {
             return (
               <div
                 key={concept.title}
-                className="group rounded-2xl border border-white/10 bg-white/3 p-7 transition hover:-translate-y-1 hover:border-indigo-400/30 hover:bg-white/5"
+                className="glass-card group p-6 sm:p-7"
               >
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400">
                   <Icon size={21} />

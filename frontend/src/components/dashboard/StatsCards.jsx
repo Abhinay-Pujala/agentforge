@@ -18,20 +18,25 @@ export default function StatsCards({ workers = [], executions = [], workflows = 
   ];
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {stats.map((stat) => {
         const Icon = stat.icon;
 
         return (
           <div
             key={stat.title}
-            className="rounded-2xl border border-slate-800 bg-slate-900 p-6 transition hover:border-indigo-500/30"
+            className="glass-panel p-4 sm:p-5"
           >
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-slate-400">{stat.title}</p>
-              <Icon size={20} className="text-indigo-400" />
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-medium text-slate-600">{stat.title}</p>
+              <div className="flex h-9 w-9 items-center justify-center rounded-2xl border border-indigo-300/60 bg-indigo-500/10 text-indigo-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]">
+                <Icon size={18} />
+              </div>
             </div>
-            <h3 className="mt-4 text-3xl font-bold text-white">{stat.value}</h3>
+
+            <h3 className="mt-5 text-3xl font-bold tracking-tight text-slate-900">
+              {stat.value}
+            </h3>
           </div>
         );
       })}

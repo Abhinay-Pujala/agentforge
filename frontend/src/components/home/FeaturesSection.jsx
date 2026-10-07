@@ -72,16 +72,16 @@ export default function FeaturesSection() {
         </div>
 
         {/* Feature grid */}
-        <div className="mt-16 grid gap-px overflow-hidden rounded-3xl border border-white/10 bg-white/10 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-16 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {features.map((feature) => {
             const Icon = feature.icon;
 
             return (
               <div
                 key={feature.title}
-                className="group bg-slate-950 p-8 transition hover:bg-slate-900"
+                className="glass-card group rounded-[24px] p-6 sm:p-8"
               >
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/3 text-indigo-400 transition group-hover:border-indigo-400/30 group-hover:bg-indigo-500/10">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/6 text-indigo-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] transition group-hover:border-indigo-400/30 group-hover:bg-indigo-500/10">
                   <Icon size={21} />
                 </div>
 

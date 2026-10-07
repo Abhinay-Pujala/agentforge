@@ -423,6 +423,10 @@ export async function runWorker(req, res, next) {
       output: result.output,
       workflowId: workflowState.workflowId,
       workflowData: workflowState.workflowData,
+      workflowPlan: result.metadata?.workflowPlan || workflowState.workflowPlan || null,
+      workflowCheckpoint:
+        workflowState.checkpoint || workflowState.workflowData || null,
+      pendingInput: workflowState.pendingInput,
       missingFields: workflowState.missingFields,
       startedAt,
       completedAt,
@@ -605,6 +609,17 @@ ${input}`,
       output: result.output,
       workflowId: workflowState.workflowId || execution.workflowId || null,
       workflowData: workflowState.workflowData,
+      workflowPlan:
+        result.metadata?.workflowPlan ||
+        execution.workflowPlan ||
+        workflowState.workflowPlan ||
+        null,
+      workflowCheckpoint:
+        workflowState.checkpoint ||
+        workflowState.workflowData ||
+        execution.workflowCheckpoint ||
+        null,
+      pendingInput: workflowState.pendingInput,
       missingFields: workflowState.missingFields,
       completedAt,
       durationMs: completedAt.getTime() - startedAt.getTime(),

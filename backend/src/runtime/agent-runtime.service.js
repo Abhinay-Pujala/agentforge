@@ -55,6 +55,14 @@ function inferWorkflowForInput(workflowCatalog, input) {
         inputTokens.has(token),
       );
 
+      const capabilityTokens = Array.isArray(workflow.capabilities)
+        ? workflow.capabilities.flatMap((capability) => tokenize(capability))
+        : [];
+
+      const matchedCapabilities = capabilityTokens.filter((token) =>
+        inputTokens.has(token),
+      );
+
       const category = String(workflow.category || "").toLowerCase();
       const categoryHints = WORKFLOW_CATEGORY_HINTS[category] || new Set();
       const categoryHintMatches = [...categoryHints].filter((token) =>
@@ -63,7 +71,15 @@ function inferWorkflowForInput(workflowCatalog, input) {
 
       return {
         workflow,
-        score: matchedTokens.length + categoryHintMatches.length,
+        // Capabilities are explicit semantic metadata and therefore carry
+        // more weight than incidental words from a description.
+        score:
+          matchedCapabilities.length * 4 +
+          categoryHintMatches.length * 2 +
+          matchedTokens.length,
+        matchedCapabilities,
+        matchedTokens,
+        categoryHintMatches,
       };
     })
     .sort((a, b) => b.score - a.score);
@@ -73,6 +89,8 @@ function inferWorkflowForInput(workflowCatalog, input) {
 
 const WORKFLOW_ACTION_WORDS = new Set([
   "send",
+  "reply",
+  "respond",
   "create",
   "add",
   "update",
@@ -184,39 +202,34 @@ function hasWorkflowIntent(input, workflowCatalog = []) {
     return false;
   }
 
-  // Explicit action verbs are the strongest workflow signal. Check them
-  // before conversational-question detection so requests such as
-  // "Can you send an email?" still trigger the registered workflow.
-  if (tokenize(input).some((token) => WORKFLOW_ACTION_WORDS.has(token))) {
-    return true;
-  }
-
   const workflow = inferWorkflowForInput(workflowCatalog, input);
+  const tokens = tokenize(input);
+  const hasExplicitAction = tokens.some((token) =>
+    WORKFLOW_ACTION_WORDS.has(token),
+  );
   const hasRequestContext = hasWorkflowRequestContext(input);
 
-  // Knowledge, capability, and explanatory questions should remain ordinary
-  // conversation even when they mention a workflow-related word.
-  if (isConversationalInput(input)) {
-    if (!hasRequestContext) {
-      return false;
-    }
-
-    // Natural yes/no questions such as "Do I have anything scheduled today?"
-    // are conversational in form but are still actionable workflow requests.
-    // Category hints allow the correct workflow to be selected even when the
-    // user does not explicitly say "calendar" or "email".
-    return Boolean(workflow) || workflowCatalog.length === 1;
-  }
-
-  // Natural-language requests often do not contain an explicit action verb,
-  // for example: "What do I have on my calendar tomorrow?" Match the
-  // request against the registered workflow and require request context so
-  // merely mentioning a workflow does not trigger it.
+  // A workflow must be relevant to the request before any side effecting
+  // tool can be exposed. This prevents a single registered workflow from
+  // hijacking unrelated requests such as "create a function".
   if (!workflow) {
     return false;
   }
 
-  return hasWorkflowRequestContext(input);
+  // Explicit actions are strong evidence, but only when a relevant workflow
+  // was actually discovered.
+  if (hasExplicitAction) {
+    return true;
+  }
+
+  // Conversational/knowledge questions should remain ordinary conversation.
+  if (isConversationalInput(input)) {
+    return hasRequestContext;
+  }
+
+  // Natural requests such as "What do I have on my calendar tomorrow?"
+  // contain request context without necessarily using an action verb.
+  return hasRequestContext;
 }
 
 function shouldAttemptWorkflow(input, workflowCatalog) {
@@ -224,20 +237,7 @@ function shouldAttemptWorkflow(input, workflowCatalog) {
     return false;
   }
 
-  // General conversation must never trigger a workflow. A single-workflow
-  // worker only becomes deterministic after the request clearly expresses an
-  // action that could be performed by a workflow.
-  if (!hasWorkflowIntent(input, workflowCatalog)) {
-    return false;
-  }
-
-  // Once workflow intent is present, a worker with exactly one registered
-  // workflow can deterministically use that workflow.
-  if (workflowCatalog.length === 1) {
-    return true;
-  }
-
-  return Boolean(inferWorkflowForInput(workflowCatalog, input));
+  return hasWorkflowIntent(input, workflowCatalog);
 }
 
 function isPlaceholderWorkflowValue(value, fieldName = "") {

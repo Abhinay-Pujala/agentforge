@@ -64,13 +64,24 @@ function normalizeWorkflowResult(result, workflow) {
   }
 
   const payload = result.result ?? result.data ?? result;
-  const message =
-    (typeof result.message === "string" && result.message.trim() && result.message) ||
-    (typeof payload?.message === "string" && payload.message.trim() && payload.message) ||
-    (typeof payload?.output === "string" && payload.output.trim() && payload.output) ||
-    (typeof payload?.result === "string" && payload.result.trim() && payload.result) ||
-    (typeof result.raw === "string" && result.raw.trim() && result.raw) ||
-    "Workflow completed successfully.";
+
+  const messageCandidates = [
+    result.message,
+    result.output,
+    payload?.message,
+    payload?.output,
+    payload?.result,
+    payload?.result?.message,
+    payload?.result?.output,
+    payload?.result?.result,
+    payload?.data?.message,
+    payload?.data?.output,
+    result.raw,
+  ];
+
+  const message = messageCandidates.find(
+    (value) => typeof value === "string" && value.trim(),
+  ) || "Workflow completed successfully.";
 
   return {
     success: true,

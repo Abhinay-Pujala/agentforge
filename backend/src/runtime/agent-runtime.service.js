@@ -237,13 +237,6 @@ class AgentRuntime {
         configuration: worker.configuration || {},
         executionPolicy,
         tools: availableTools,
-        toolChoice:
-          hasWorkflowTools && workflowCallRequired
-            ? {
-                type: "function",
-                function: { name: "n8n.trigger" },
-              }
-            : undefined,
       });
 
       const normalizedResponse = normalizeModelResponse(modelResponse);

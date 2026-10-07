@@ -10,6 +10,7 @@ import {
   createExecution,
   updateExecutionStatus,
   getExecutionById,
+  resumeExecution,
 } from "../services/execution.service.js";
 
 const FREEFORM_RESUME_FIELDS = [
@@ -573,12 +574,27 @@ export async function resumeWorkerExecution(req, res, next) {
 
     startedAt = new Date();
 
-    await updateExecutionStatus(execution._id, {
-      status: "RUNNING",
-      startedAt,
-      completedAt: null,
-      durationMs: null,
-    });
+    // Atomically claim the paused execution. A second resume request cannot
+    // execute the same side-effecting workflow concurrently.
+    const claimedExecution = await resumeExecution(
+      execution._id,
+      user._id,
+      {
+        startedAt,
+        completedAt: null,
+        durationMs: null,
+      },
+    );
+
+    if (!claimedExecution) {
+      return res.status(409).json({
+        success: false,
+        message: "Execution is already being resumed or is no longer waiting for input.",
+        data: null,
+      });
+    }
+
+    execution = claimedExecution;
 
     const runtime = createAgentRuntime();
 

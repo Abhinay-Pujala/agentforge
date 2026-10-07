@@ -74,8 +74,21 @@ export function buildN8nSuccessResponse(result = {}) {
     };
   }
 
+  if (result?.success === false) {
+    return {
+      success: false,
+      status: "FAILED",
+      error: result.error || {
+        code: "N8N_WORKFLOW_FAILED",
+        message: "The n8n workflow reported a failure.",
+      },
+      result,
+    };
+  }
+
   return {
     success: true,
+    status: "COMPLETED",
     result,
   };
 }

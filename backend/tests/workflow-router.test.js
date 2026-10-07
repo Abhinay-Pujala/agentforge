@@ -1,0 +1,104 @@
+import { describe, expect, it } from "vitest";
+import {
+  buildNaturalLanguageWorkflowData,
+  isActionableWorkflowRequest,
+  isNaturalLanguageWorkflow,
+  scoreWorkflow,
+  selectWorkflow,
+} from "../src/runtime/workflow-router.js";
+
+const gmailWorkflow = {
+  id: "workflow-gmail",
+  name: "Gmail Workflow",
+  description: "AI-powered Gmail integration for reading, searching, drafting, replying to, and sending emails.",
+  category: "productivity",
+  capabilities: ["email", "gmail", "search", "reply"],
+  status: "enabled",
+  inputSchema: {
+    type: "object",
+    properties: {
+      worker: { type: "string" },
+      input: { type: "string" },
+      timestamp: { type: "string" },
+    },
+    required: ["input"],
+    additionalProperties: false,
+  },
+};
+
+describe("workflow-router", () => {
+  it("selects Gmail for natural-language email search and reply requests", () => {
+    const result = selectWorkflow(
+      [gmailWorkflow],
+      "Check is there any email I got from KYP Gamers, if there is then reply to it",
+    );
+
+    expect(result.status).toBe("MATCHED");
+    expect(result.workflow).toEqual(gmailWorkflow);
+  });
+
+  it("does not select a Gmail workflow for unrelated requests", () => {
+    const result = selectWorkflow(
+      [gmailWorkflow],
+      "Explain how JavaScript promises work.",
+    );
+
+    expect(result.status).toBe("NONE");
+    expect(result.workflow).toBeNull();
+  });
+
+  it("treats capability metadata as stronger than incidental description matches", () => {
+    const result = scoreWorkflow(gmailWorkflow, "reply to the latest email");
+
+    expect(result.score).toBeGreaterThan(20);
+    expect(result.reasons).toEqual(
+      expect.arrayContaining(["action:reply", "domain:email"]),
+    );
+  });
+
+  it("detects natural-language workflow contracts", () => {
+    expect(isNaturalLanguageWorkflow(gmailWorkflow)).toBe(true);
+  });
+
+  it("builds only fields allowed by the registered input schema", () => {
+    const data = buildNaturalLanguageWorkflowData(
+      gmailWorkflow,
+      "Check my inbox.",
+      { workerId: "worker-123" },
+    );
+
+    expect(data).toEqual({
+      input: "Check my inbox.",
+      worker: "worker-123",
+      timestamp: expect.any(String),
+    });
+  });
+
+  it("recognizes actionable requests without treating knowledge questions as workflow actions", () => {
+    expect(isActionableWorkflowRequest("Show my latest emails")).toBe(true);
+    expect(isActionableWorkflowRequest("What is email?")).toBe(false);
+  });
+
+  it("marks tied workflow candidates as ambiguous", () => {
+    const calendarA = {
+      ...gmailWorkflow,
+      id: "workflow-a",
+      name: "Email Search A",
+      capabilities: ["email", "search"],
+    };
+    const calendarB = {
+      ...gmailWorkflow,
+      id: "workflow-b",
+      name: "Email Search B",
+      capabilities: ["email", "search"],
+    };
+
+    const result = selectWorkflow(
+      [calendarA, calendarB],
+      "Search my email",
+    );
+
+    expect(result.status).toBe("AMBIGUOUS");
+    expect(result.workflow).toBeNull();
+  });
+});

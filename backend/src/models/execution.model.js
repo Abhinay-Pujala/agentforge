@@ -48,6 +48,20 @@ const executionSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       default: {},
     },
+    // Durable workflow orchestration state. This is the source of truth for
+    // pause/resume; tool-call history remains an audit trail only.
+    workflowPlan: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
+    workflowCheckpoint: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
+    pendingInput: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
     missingFields: {
       type: [String],
       default: [],

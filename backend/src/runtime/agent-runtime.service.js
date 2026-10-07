@@ -1,244 +1,15 @@
 import { buildPrompt } from "./prompt-builder.js";
 import { normalizeModelResponse } from "./model-response.js";
 import ToolExecutionService from "../tools/tool-execution.service.js";
+import {
+  buildNaturalLanguageWorkflowData,
+  selectWorkflow,
+  isNaturalLanguageWorkflow,
+  buildWorkflowInstruction,
+  buildWorkflowPlan,
+} from "./workflow-router.js";
 
 const DEFAULT_MAX_TOOL_ROUNDS = 8;
-
-function tokenize(value) {
-  return String(value || "")
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .filter((token) => token.length > 2);
-}
-
-const WORKFLOW_CATEGORY_HINTS = {
-  calendar: new Set([
-    "calendar",
-    "meeting",
-    "meetings",
-    "event",
-    "events",
-    "schedule",
-    "scheduled",
-    "appointment",
-    "appointments",
-  ]),
-  email: new Set([
-    "email",
-    "emails",
-    "mail",
-    "inbox",
-    "unread",
-    "message",
-    "messages",
-  ]),
-};
-
-function inferWorkflowForInput(workflowCatalog, input) {
-  if (!Array.isArray(workflowCatalog) || workflowCatalog.length === 0) {
-    return null;
-  }
-
-  const inputTokens = new Set(tokenize(input));
-
-  const ranked = workflowCatalog
-    .map((workflow) => {
-      const searchable = [
-        workflow.name,
-        workflow.description,
-        workflow.category,
-      ]
-        .filter(Boolean)
-        .join(" ");
-
-      const matchedTokens = tokenize(searchable).filter((token) =>
-        inputTokens.has(token),
-      );
-
-      const category = String(workflow.category || "").toLowerCase();
-      const categoryHints = WORKFLOW_CATEGORY_HINTS[category] || new Set();
-      const categoryHintMatches = [...categoryHints].filter((token) =>
-        inputTokens.has(token),
-      );
-
-      return {
-        workflow,
-        score: matchedTokens.length + categoryHintMatches.length,
-      };
-    })
-    .sort((a, b) => b.score - a.score);
-
-  return ranked[0]?.score > 0 ? ranked[0].workflow : null;
-}
-
-const WORKFLOW_ACTION_WORDS = new Set([
-  "send",
-  "create",
-  "add",
-  "update",
-  "edit",
-  "delete",
-  "remove",
-  "find",
-  "lookup",
-  "search",
-  "fetch",
-  "get",
-  "retrieve",
-  "save",
-  "store",
-  "insert",
-  "append",
-  "notify",
-  "schedule",
-  "trigger",
-  "run",
-  "execute",
-  "generate",
-  "post",
-  "publish",
-  "upload",
-  "download",
-  "sync",
-  "export",
-  "import",
-  "move",
-  "copy",
-  "archive",
-  "assign",
-]);
-
-function isConversationalInput(input) {
-  const normalized = String(input || "")
-    .trim()
-    .toLowerCase();
-
-  if (!normalized) return true;
-
-  return (
-    /^(?:hi|hello|hey|yo|thanks|thank you|good morning|good afternoon|good evening)[!,.s]*$/i.test(
-      normalized,
-    ) ||
-    /^(?:what can you do|what do you do|who are you|how can you help|what are your capabilities)[?!.,s]*$/i.test(
-      normalized,
-    ) ||
-    /^(?:can you|could you) (?:explain|tell me about|describe|help me understand)\b/i.test(
-      normalized,
-    ) ||
-    /^(?:how do i|how can i|what is|what are|why does|why is|tell me about)\b/i.test(
-      normalized,
-    ) ||
-    /^(?:can|could|would|should|do|does|is|are)\b[^\n]*\?$/i.test(normalized)
-  );
-}
-function isWorkflowPlaceholderInput(input) {
-  const normalized = String(input || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[.!?]+$/, "")
-    .replace(/\s+/g, " ");
-
-  // The Run Worker UI uses this as its initial placeholder. It is status
-  // text, not a user request, so it must never unlock a side-effecting
-  // workflow.
-  return new Set([
-    "worker is ready to execute",
-    "worker ready to execute",
-    "ready to execute",
-  ]).has(normalized);
-}
-
-const WORKFLOW_REQUEST_WORDS = new Set([
-  "show",
-  "list",
-  "check",
-  "view",
-  "see",
-  "have",
-  "anything",
-  "any",
-  "upcoming",
-  "latest",
-  "today",
-  "tomorrow",
-  "yesterday",
-  "week",
-  "month",
-  "meeting",
-  "meetings",
-  "event",
-  "events",
-  "scheduled",
-  "schedule",
-  "unread",
-  "recent",
-  "new",
-]);
-
-function hasWorkflowRequestContext(input) {
-  return tokenize(input).some((token) => WORKFLOW_REQUEST_WORDS.has(token));
-}
-
-function hasWorkflowIntent(input, workflowCatalog = []) {
-  if (isWorkflowPlaceholderInput(input)) {
-    return false;
-  }
-
-  // Explicit action verbs are the strongest workflow signal. Check them
-  // before conversational-question detection so requests such as
-  // "Can you send an email?" still trigger the registered workflow.
-  if (tokenize(input).some((token) => WORKFLOW_ACTION_WORDS.has(token))) {
-    return true;
-  }
-
-  const workflow = inferWorkflowForInput(workflowCatalog, input);
-  const hasRequestContext = hasWorkflowRequestContext(input);
-
-  // Knowledge, capability, and explanatory questions should remain ordinary
-  // conversation even when they mention a workflow-related word.
-  if (isConversationalInput(input)) {
-    if (!hasRequestContext) {
-      return false;
-    }
-
-    // Natural yes/no questions such as "Do I have anything scheduled today?"
-    // are conversational in form but are still actionable workflow requests.
-    // Category hints allow the correct workflow to be selected even when the
-    // user does not explicitly say "calendar" or "email".
-    return Boolean(workflow) || workflowCatalog.length === 1;
-  }
-
-  // Natural-language requests often do not contain an explicit action verb,
-  // for example: "What do I have on my calendar tomorrow?" Match the
-  // request against the registered workflow and require request context so
-  // merely mentioning a workflow does not trigger it.
-  if (!workflow) {
-    return false;
-  }
-
-  return hasWorkflowRequestContext(input);
-}
-
-function shouldAttemptWorkflow(input, workflowCatalog) {
-  if (!Array.isArray(workflowCatalog) || workflowCatalog.length === 0) {
-    return false;
-  }
-
-  // General conversation must never trigger a workflow. A single-workflow
-  // worker only becomes deterministic after the request clearly expresses an
-  // action that could be performed by a workflow.
-  if (!hasWorkflowIntent(input, workflowCatalog)) {
-    return false;
-  }
-
-  // Once workflow intent is present, a worker with exactly one registered
-  // workflow can deterministically use that workflow.
-  if (workflowCatalog.length === 1) {
-    return true;
-  }
-
-  return Boolean(inferWorkflowForInput(workflowCatalog, input));
-}
 
 function isPlaceholderWorkflowValue(value, fieldName = "") {
   if (typeof value !== "string") return false;
@@ -299,6 +70,22 @@ function getRequiredWorkflowFields(workflow) {
     : [];
 }
 
+
+function createDeterministicWorkflowToolCall(workflow, input, context) {
+  if (!isNaturalLanguageWorkflow(workflow)) {
+    return null;
+  }
+
+  return {
+    id: `n8n-deterministic-${workflow.id}`,
+    tool: "n8n.trigger",
+    arguments: {
+      workflowId: workflow.id,
+      data: buildNaturalLanguageWorkflowData(workflow, input, context),
+    },
+  };
+}
+
 function getWorkflowExecutionKey(toolCall) {
   if (toolCall?.tool !== "n8n.trigger") {
     return null;
@@ -353,11 +140,20 @@ class AgentRuntime {
 
     const messages = buildPrompt(worker, input, context);
 
+    const workflowSelection = selectWorkflow(context.workflowCatalog, input);
+    const workflowPlan =
+      workflowSelection.status === "MATCHED"
+        ? buildWorkflowPlan(workflowSelection.workflow, input, context)
+        : context.workflowPlan || null;
     const workflowIntentDetected =
       Boolean(context.resumedFromExecutionId) ||
-      shouldAttemptWorkflow(input, context.workflowCatalog);
+      workflowSelection.status === "MATCHED";
 
     const enabledToolNames = new Set(worker.enabledTools || []);
+
+    if (workflowIntentDetected) {
+      enabledToolNames.add("n8n.trigger");
+    }
 
     // Do not expose the side-effecting n8n tool to ordinary conversation.
     // This is enforced here rather than only through prompting.
@@ -397,13 +193,6 @@ class AgentRuntime {
         configuration: worker.configuration || {},
         executionPolicy,
         tools: availableTools,
-        toolChoice:
-          hasWorkflowTools && workflowCallRequired
-            ? {
-                type: "function",
-                function: { name: "n8n.trigger" },
-              }
-            : undefined,
       });
 
       const normalizedResponse = normalizeModelResponse(modelResponse);
@@ -411,12 +200,35 @@ class AgentRuntime {
       // A workflow request may contain multiple independent actions. Execute
       // each registered workflow call sequentially while preventing exact
       // duplicate workflow actions from running more than once.
-      const toolCallsForExecution =
+      let toolCallsForExecution =
         hasWorkflowTools && workflowIntentDetected
           ? normalizedResponse.toolCalls.filter(
               (call) => call.tool === "n8n.trigger",
             )
           : normalizedResponse.toolCalls;
+
+      // Some OpenRouter model/provider combinations can expose tools but still
+      // return a normal text response instead of a structured tool call.
+      // For a registered natural-language workflow (schema has an `input`
+      // string), execution is deterministic: invoke that workflow with the
+      // original user request rather than accepting a false "I'll do it"
+      // response as completion.
+      if (
+        toolCallsForExecution.length === 0 &&
+        hasWorkflowTools &&
+        workflowCallRequired
+      ) {
+        const workflow = workflowSelection.workflow;
+        const fallbackToolCall = createDeterministicWorkflowToolCall(
+          workflow,
+          input,
+          context,
+        );
+
+        if (fallbackToolCall) {
+          toolCallsForExecution = [fallbackToolCall];
+        }
+      }
 
       if (toolCallsForExecution.length === 0) {
         if (inputRequired) {
@@ -437,10 +249,7 @@ class AgentRuntime {
         // repeatedly ask the model to retry; this execution gets one model
         // decision and one workflow attempt.
         if (workflowCallRequired && hasWorkflowTools) {
-          const workflow = inferWorkflowForInput(
-            context.workflowCatalog,
-            input,
-          );
+          const workflow = workflowSelection.workflow;
 
           return {
             success: true,
@@ -545,13 +354,39 @@ class AgentRuntime {
           // never in tool arguments. Strip any accidental extra top-level
           // fields before the generic tool-schema validator runs.
           if (toolCall.tool === "n8n.trigger") {
+            const assignedWorkflow =
+              workflowSelection.workflow ||
+              context.workflowCatalog?.find(
+                (workflow) =>
+                  workflow.id === toolCall.arguments?.workflowId,
+              ) ||
+              (context.workflowCatalog?.length === 1
+                ? context.workflowCatalog[0]
+                : null);
+
+            const normalizedData =
+              toolCall.arguments?.data &&
+              typeof toolCall.arguments.data === "object"
+                ? toolCall.arguments.data
+                : {};
+
+            // Natural-language workflows receive a complete, deterministic
+            // execution instruction built from the authoritative user input.
+            // Never allow the model to shorten a compound request before it
+            // reaches n8n.
+            if (
+              assignedWorkflow &&
+              isNaturalLanguageWorkflow(assignedWorkflow)
+            ) {
+              normalizedData.input = buildWorkflowInstruction(
+                assignedWorkflow,
+                input,
+              );
+            }
+
             toolCall.arguments = {
               workflowId: toolCall.arguments?.workflowId,
-              data:
-                toolCall.arguments?.data &&
-                typeof toolCall.arguments.data === "object"
-                  ? toolCall.arguments.data
-                  : {},
+              data: normalizedData,
             };
           }
 
@@ -642,6 +477,21 @@ class AgentRuntime {
                 });
           }
 
+          if (
+            toolCall.tool === "n8n.trigger" &&
+            toolResult?.success === false
+          ) {
+            const workflowError = new Error(
+              toolResult?.error?.message ||
+                "The n8n workflow reported a failure.",
+            );
+            workflowError.code =
+              toolResult?.error?.code || "N8N_WORKFLOW_FAILED";
+            workflowError.category = "WORKFLOW_ERROR";
+            workflowError.retryable = false;
+            throw workflowError;
+          }
+
           record.result = toolResult;
           record.status =
             toolResult?.status === "INPUT_REQUIRED"
@@ -673,6 +523,11 @@ class AgentRuntime {
               workflowName: toolResult.workflowName,
               missingFields: toolResult.missingFields || [],
               validationErrors: toolResult.validationErrors || [],
+              message: toolResult.message || null,
+              data:
+                toolResult.data && typeof toolResult.data === "object"
+                  ? toolResult.data
+                  : {},
             };
           }
 
@@ -713,9 +568,11 @@ class AgentRuntime {
           return {
             success: true,
             output:
+              inputRequired.message ||
               "Additional information is required before this action can continue.",
             metadata: {
               inputRequired,
+              workflowPlan,
             },
             toolCalls: toolCallRecords,
           };

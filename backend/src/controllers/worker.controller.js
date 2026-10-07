@@ -10,6 +10,7 @@ import {
   createExecution,
   updateExecutionStatus,
   getExecutionById,
+  resumeExecution,
 } from "../services/execution.service.js";
 
 const FREEFORM_RESUME_FIELDS = [
@@ -93,18 +94,43 @@ function getWorkflowState(result) {
     .reverse()
     .find((call) => call?.tool === "n8n.trigger");
 
-  const workflowResult = workflowCall?.result;
+  const workflowResult = workflowCall?.result || {};
+  const argumentData =
+    workflowCall?.arguments?.data &&
+    typeof workflowCall.arguments.data === "object"
+      ? workflowCall.arguments.data
+      : {};
+  const returnedData =
+    workflowResult?.data &&
+    typeof workflowResult.data === "object"
+      ? workflowResult.data
+      : {};
 
   return {
     workflowId:
       workflowCall?.arguments?.workflowId ||
       workflowResult?.workflowId ||
       null,
-    workflowData:
-      workflowCall?.arguments?.data &&
-      typeof workflowCall.arguments.data === "object"
-        ? workflowCall.arguments.data
-        : {},
+    workflowData: {
+      ...argumentData,
+      ...returnedData,
+    },
+    workflowPlan:
+      workflowResult?.workflowPlan ||
+      workflowResult?.data?.workflowPlan ||
+      null,
+    checkpoint:
+      workflowResult?.checkpoint ||
+      workflowResult?.data?.checkpoint ||
+      returnedData,
+    pendingInput:
+      workflowResult?.status === "INPUT_REQUIRED"
+        ? {
+            message: workflowResult?.message || null,
+            missingFields: normalizeMissingFields(workflowResult?.missingFields),
+            data: returnedData,
+          }
+        : null,
     missingFields: normalizeMissingFields(workflowResult?.missingFields),
   };
 }
@@ -398,6 +424,10 @@ export async function runWorker(req, res, next) {
       output: result.output,
       workflowId: workflowState.workflowId,
       workflowData: workflowState.workflowData,
+      workflowPlan: result.metadata?.workflowPlan || workflowState.workflowPlan || null,
+      workflowCheckpoint:
+        workflowState.checkpoint || workflowState.workflowData || null,
+      pendingInput: workflowState.pendingInput,
       missingFields: workflowState.missingFields,
       startedAt,
       completedAt,
@@ -500,13 +530,19 @@ export async function resumeWorkerExecution(req, res, next) {
       lastInputRequiredCall?.result?.missingFields,
     );
     const previousWorkflowData =
-      execution.workflowData &&
-      typeof execution.workflowData === "object"
-        ? execution.workflowData
-        : lastInputRequiredCall?.arguments?.data &&
-            typeof lastInputRequiredCall.arguments.data === "object"
-          ? lastInputRequiredCall.arguments.data
-          : {};
+      execution.workflowCheckpoint &&
+      typeof execution.workflowCheckpoint === "object"
+        ? execution.workflowCheckpoint
+        : execution.workflowData &&
+            typeof execution.workflowData === "object"
+          ? execution.workflowData
+          : lastInputRequiredCall?.result?.data &&
+              typeof lastInputRequiredCall.result.data === "object"
+            ? lastInputRequiredCall.result.data
+            : lastInputRequiredCall?.arguments?.data &&
+                typeof lastInputRequiredCall.arguments.data === "object"
+              ? lastInputRequiredCall.arguments.data
+              : {};
 
     // Preserve every value already collected before the pause. The user's
     // reply is layered on top of that state and the runtime will merge it
@@ -532,17 +568,33 @@ export async function resumeWorkerExecution(req, res, next) {
       resumeTargetField: resumeField,
       originalUserInput: `${execution.input}\n${input.trim()}`,
       pendingWorkflowData: previousWorkflowData,
+      workflowPlan: execution.workflowPlan || null,
       missingWorkflowFields: missingFields,
     };
 
     startedAt = new Date();
 
-    await updateExecutionStatus(execution._id, {
-      status: "RUNNING",
-      startedAt,
-      completedAt: null,
-      durationMs: null,
-    });
+    // Atomically claim the paused execution. A second resume request cannot
+    // execute the same side-effecting workflow concurrently.
+    const claimedExecution = await resumeExecution(
+      execution._id,
+      user._id,
+      {
+        startedAt,
+        completedAt: null,
+        durationMs: null,
+      },
+    );
+
+    if (!claimedExecution) {
+      return res.status(409).json({
+        success: false,
+        message: "Execution is already being resumed or is no longer waiting for input.",
+        data: null,
+      });
+    }
+
+    execution = claimedExecution;
 
     const runtime = createAgentRuntime();
 
@@ -580,6 +632,17 @@ ${input}`,
       output: result.output,
       workflowId: workflowState.workflowId || execution.workflowId || null,
       workflowData: workflowState.workflowData,
+      workflowPlan:
+        result.metadata?.workflowPlan ||
+        execution.workflowPlan ||
+        workflowState.workflowPlan ||
+        null,
+      workflowCheckpoint:
+        workflowState.checkpoint ||
+        workflowState.workflowData ||
+        execution.workflowCheckpoint ||
+        null,
+      pendingInput: workflowState.pendingInput,
       missingFields: workflowState.missingFields,
       completedAt,
       durationMs: completedAt.getTime() - startedAt.getTime(),

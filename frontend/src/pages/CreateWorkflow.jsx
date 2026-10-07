@@ -25,6 +25,7 @@ export default function CreateWorkflow() {
     status: "enabled",
     permissions: "n8n.trigger",
     inputSchema: DEFAULT_INPUT_SCHEMA,
+    capabilities: "email, gmail, mail, inbox, search, find, read, reply, respond, send, draft",
   });
 
   const [error, setError] = useState("");
@@ -81,6 +82,7 @@ export default function CreateWorkflow() {
         name,
         description,
         category,
+        capabilities: formData.capabilities.split(",").map((value) => value.trim().toLowerCase()).filter(Boolean),
         webhook: {
           provider: "n8n",
           url: webhookUrl,
@@ -182,6 +184,23 @@ export default function CreateWorkflow() {
                   placeholder="What does this workflow do?"
                   className="w-full resize-none rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-indigo-500"
                 />
+              </div>
+
+              <div>
+                <label htmlFor="capabilities" className="mb-2 block text-sm font-medium text-slate-200">
+                  Capabilities
+                </label>
+                <input
+                  id="capabilities"
+                  name="capabilities"
+                  value={formData.capabilities}
+                  onChange={handleChange}
+                  placeholder="email, gmail, search, reply"
+                  className="field-input"
+                />
+                <p className="mt-2 text-xs text-slate-500">
+                  Comma-separated terms used for natural-language workflow discovery.
+                </p>
               </div>
 
               <div className="grid gap-5 sm:grid-cols-2">

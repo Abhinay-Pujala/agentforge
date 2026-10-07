@@ -529,13 +529,19 @@ export async function resumeWorkerExecution(req, res, next) {
       lastInputRequiredCall?.result?.missingFields,
     );
     const previousWorkflowData =
-      execution.workflowData &&
-      typeof execution.workflowData === "object"
-        ? execution.workflowData
-        : lastInputRequiredCall?.arguments?.data &&
-            typeof lastInputRequiredCall.arguments.data === "object"
-          ? lastInputRequiredCall.arguments.data
-          : {};
+      execution.workflowCheckpoint &&
+      typeof execution.workflowCheckpoint === "object"
+        ? execution.workflowCheckpoint
+        : execution.workflowData &&
+            typeof execution.workflowData === "object"
+          ? execution.workflowData
+          : lastInputRequiredCall?.result?.data &&
+              typeof lastInputRequiredCall.result.data === "object"
+            ? lastInputRequiredCall.result.data
+            : lastInputRequiredCall?.arguments?.data &&
+                typeof lastInputRequiredCall.arguments.data === "object"
+              ? lastInputRequiredCall.arguments.data
+              : {};
 
     // Preserve every value already collected before the pause. The user's
     // reply is layered on top of that state and the runtime will merge it
@@ -561,6 +567,7 @@ export async function resumeWorkerExecution(req, res, next) {
       resumeTargetField: resumeField,
       originalUserInput: `${execution.input}\n${input.trim()}`,
       pendingWorkflowData: previousWorkflowData,
+      workflowPlan: execution.workflowPlan || null,
       missingWorkflowFields: missingFields,
     };
 

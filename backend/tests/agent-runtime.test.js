@@ -1419,9 +1419,11 @@ describe("workflow intent reliability", () => {
     expect(n8nTool.execute).toHaveBeenCalledWith(
       expect.objectContaining({
         workflowId: "workflow-gmail",
-        data: {
-          input: "Check my email from KYP Gamers and reply to it.",
-        },
+        data: expect.objectContaining({
+          input: expect.stringContaining(
+            "Original user request (authoritative): Check my email from KYP Gamers and reply to it.",
+          ),
+        }),
       }),
       expect.objectContaining({
         workerId: "worker-123",

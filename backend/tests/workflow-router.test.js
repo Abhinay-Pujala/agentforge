@@ -89,6 +89,17 @@ describe("workflow-router", () => {
     );
     expect(instruction).toContain(
       "do not stop after an intermediate lookup or check.",
+    );\n    expect(instruction).toContain(
+      "Execute prerequisite actions before evaluating whether dependent actions can proceed.",
+    );
+    expect(instruction).toContain(
+      "search for the matching email first.",
+    );
+    expect(instruction).toContain(
+      "If one exists but reply content is missing, return INPUT_REQUIRED for the reply message",
+    );
+    expect(instruction).toContain(
+      "preserve the found email/thread identifiers for resume.",
     );
     expect(instruction).toContain(
       "Do not invent recipients, reply content, dates, identifiers, or other user-provided facts.",

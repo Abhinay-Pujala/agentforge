@@ -4,6 +4,7 @@ const workflowBody = z.object({
   name: z.string().trim().min(1).max(100),
   description: z.string().trim().min(1).max(300),
   category: z.string().trim().min(1).max(50),
+  capabilities: z.array(z.string().trim().min(1)).default([]),
   webhook: z.object({
     provider: z.literal("n8n"),
     url: z.string().trim().url(),
@@ -50,7 +51,6 @@ export const getWorkflowsSchema = z.object({
     category: z.string().trim().optional(),
   }),
 });
-
 
 export const testWorkflowSchema = z.object({
   body: z.object({

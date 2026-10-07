@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const getWorkerExecutionContextMock = vi.fn();
 const createExecutionMock = vi.fn();
 const updateExecutionStatusMock = vi.fn();
-const createAgentRuntimeMock = vi.fn();
+const executeWorkerMock = vi.fn();
 
 vi.mock("../src/services/worker-execution.service.js", () => ({
   getWorkerExecutionContext: getWorkerExecutionContextMock,
@@ -27,8 +27,10 @@ vi.mock("../src/runtime/execution-policy.js", () => ({
   validateExecutionCost: vi.fn(),
 }));
 
-vi.mock("../src/runtime/runtime-instance.js", () => ({
-  createAgentRuntime: createAgentRuntimeMock,
+vi.mock("../src/runtime/worker-flow/worker-execution-engine.js", () => ({
+  default: class MockWorkerExecutionEngine {
+    execute(...args) { return executeWorkerMock(...args); }
+  },
 }));
 
 const { runWorker } = await import("../src/controllers/worker.controller.js");
@@ -47,22 +49,26 @@ describe("Worker → AgentRuntime → n8n → execution history", () => {
       context: {
         userId: "user-123",
         workerId: "worker-123",
+        workflowCatalog: [{
+          id: "workflow-123",
+          name: "Gmail Workflow",
+          description: "Gmail agent",
+          category: "email",
+          capabilities: ["email", "gmail", "search", "reply"],
+          status: "enabled",
+          inputSchema: { type: "object", properties: { input: { type: "string" } }, required: ["input"] },
+          webhook: { provider: "n8n", url: "http://localhost:5678/webhook/test" },
+        }],
       },
     });
 
     createExecutionMock.mockResolvedValue({ _id: "execution-123" });
 
-    createAgentRuntimeMock.mockReturnValue({
-      execute: vi.fn().mockResolvedValue({
-        output: "Workflow completed successfully.",
-        metadata: { usage: { total_tokens: 10, cost: 0.001 } },
-        toolCalls: [{
-          id: "n8n-call-1",
-          tool: "n8n.trigger",
-          status: "COMPLETED",
-          result: { success: true },
-        }],
-      }),
+    executeWorkerMock.mockResolvedValue({
+      output: "Workflow completed successfully.",
+      metadata: { usage: { total_tokens: 10, cost: 0.001 }, mode: "workflow" },
+      workflow: { workflowId: "workflow-123", data: { input: "Trigger Gmail workflow" } },
+      toolCalls: [],
     });
   });
 

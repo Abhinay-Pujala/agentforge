@@ -1,113 +1,15 @@
 import User from "../models/user.model.js";
 import Worker from "../models/worker.model.js";
 import { getWorkerExecutionContext } from "../services/worker-execution.service.js";
-import { createAgentRuntime } from "../runtime/runtime-instance.js";
+import {
+  createExecution,
+  updateExecutionStatus,
+} from "../services/execution.service.js";
+import WorkerExecutionEngine from "../runtime/worker-flow/worker-execution-engine.js";
 import {
   validateExecutionCost,
   validateExecutionPolicy,
 } from "../runtime/execution-policy.js";
-import {
-  createExecution,
-  updateExecutionStatus,
-  getExecutionById,
-} from "../services/execution.service.js";
-
-const FREEFORM_RESUME_FIELDS = [
-  "message",
-  "text",
-  "body",
-  "content",
-  "description",
-  "details",
-  "notes",
-  "instructions",
-  "prompt",
-  "query",
-  "request",
-  "comment",
-  "reason",
-];
-
-const RECIPIENT_RESUME_FIELDS = [
-  "to",
-  "recipient",
-  "email",
-  "recipientEmail",
-  "destination",
-];
-
-function normalizeMissingFields(value) {
-  if (Array.isArray(value)) {
-    return value.map((field) => String(field).trim()).filter(Boolean);
-  }
-
-  if (typeof value === "string" && value.trim()) {
-    return [value.trim()];
-  }
-
-  if (value && typeof value === "object") {
-    return Object.entries(value)
-      .filter(([, required]) => Boolean(required))
-      .map(([field]) => field);
-  }
-
-  return [];
-}
-
-function selectResumeField(missingFields, input) {
-  if (!Array.isArray(missingFields) || missingFields.length === 0) {
-    return null;
-  }
-
-  const normalizedFields = missingFields.map((field) => ({
-    original: field,
-    normalized: String(field).trim().toLowerCase(),
-  }));
-
-  const looksLikeEmailAddress =
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(input || "").trim());
-
-  if (looksLikeEmailAddress) {
-    const recipientField = normalizedFields.find(({ normalized }) =>
-      RECIPIENT_RESUME_FIELDS.includes(normalized),
-    );
-
-    if (recipientField) {
-      return recipientField.original;
-    }
-  }
-
-  const freeformField = normalizedFields.find(({ normalized }) =>
-    FREEFORM_RESUME_FIELDS.includes(normalized),
-  );
-
-  if (freeformField) {
-    return freeformField.original;
-  }
-
-  return missingFields[0];
-}
-
-function getWorkflowState(result) {
-  const workflowCall = [...(result?.toolCalls || [])]
-    .reverse()
-    .find((call) => call?.tool === "n8n.trigger");
-
-  const workflowResult = workflowCall?.result;
-
-  return {
-    workflowId:
-      workflowCall?.arguments?.workflowId ||
-      workflowResult?.workflowId ||
-      null,
-    workflowData:
-      workflowCall?.arguments?.data &&
-      typeof workflowCall.arguments.data === "object"
-        ? workflowCall.arguments.data
-        : {},
-    missingFields: normalizeMissingFields(workflowResult?.missingFields),
-  };
-}
 
 function addExecutionIdToMetadata(result, executionId) {
   return {
@@ -119,468 +21,117 @@ function addExecutionIdToMetadata(result, executionId) {
   };
 }
 
+function executionError(err) {
+  return {
+    message: err?.userMessage || err?.message || "Worker execution failed.",
+    code: err?.code || err?.statusCode || null,
+    category: err?.category || null,
+    retryable: err?.retryable ?? false,
+  };
+}
+
 export async function createWorker(req, res, next) {
   try {
-    const {
-      name,
-      description,
-      instructions,
-      model,
-      configuration,
-      enabledTools,
-      permissions,
-      workflowIds,
-      status,
-    } = req.body;
-
-    const user = await User.findOne({
-      firebaseUid: req.firebaseUser.uid,
-    });
-
+    const { name, description, instructions, model, configuration, enabledTools, permissions, workflowIds, status } = req.body;
+    const user = await User.findOne({ firebaseUid: req.firebaseUser.uid });
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "user not found. Please sync your account first.",
-        data: null,
-      });
+      return res.status(404).json({ success: false, message: "user not found. Please sync your account first.", data: null });
     }
-
     const worker = await Worker.create({
-      owner: user._id,
-      name,
-      description,
-      instructions,
-      model,
-      configuration,
-      enabledTools,
-      permissions,
-      workflowIds,
+      owner: user._id, name, description, instructions, model, configuration,
+      enabledTools, permissions, workflowIds, status,
     });
-
-    return res.status(201).json({
-      success: true,
-      message: "Worker created successfully.",
-      data: worker,
-    });
-  } catch (err) {
-    next(err);
-  }
+    return res.status(201).json({ success: true, message: "Worker created successfully.", data: worker });
+  } catch (err) { next(err); }
 }
 
 export async function getWorkers(req, res, next) {
   try {
-    const user = await User.findOne({
-      firebaseUid: req.firebaseUser.uid,
-    });
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "user not found. Please sync your account first.",
-        data: null,
-      });
-    }
-
-    const workers = await Worker.find({
-      owner: user._id,
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: "Workers fetched successfully",
-      data: workers,
-    });
-  } catch (err) {
-    next(err);
-  }
+    const user = await User.findOne({ firebaseUid: req.firebaseUser.uid });
+    if (!user) return res.status(404).json({ success: false, message: "user not found. Please sync your account first.", data: null });
+    const workers = await Worker.find({ owner: user._id });
+    return res.status(200).json({ success: true, message: "Workers fetched successfully", data: workers });
+  } catch (err) { next(err); }
 }
 
 export async function getWorkerById(req, res, next) {
   try {
-    const user = await User.findOne({
-      firebaseUid: req.firebaseUser.uid,
-    });
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found. Please sync your account first.",
-        data: null,
-      });
-    }
-
-    const worker = await Worker.findOne({
-      owner: user._id,
-      _id: req.params.id,
-    });
-
-    if (!worker) {
-      return res.status(404).json({
-        success: false,
-        message: "Worker not found.",
-        data: null,
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: "Worker fetched successfully",
-      data: worker,
-    });
-  } catch (err) {
-    next(err);
-  }
+    const user = await User.findOne({ firebaseUid: req.firebaseUser.uid });
+    if (!user) return res.status(404).json({ success: false, message: "User not found. Please sync your account first.", data: null });
+    const worker = await Worker.findOne({ owner: user._id, _id: req.params.id });
+    if (!worker) return res.status(404).json({ success: false, message: "Worker not found.", data: null });
+    return res.status(200).json({ success: true, message: "Worker fetched successfully", data: worker });
+  } catch (err) { next(err); }
 }
 
 export async function updateWorker(req, res, next) {
   try {
-    const user = await User.findOne({
-      firebaseUid: req.firebaseUser.uid,
-    });
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found. Please sync your account first.",
-        data: null,
-      });
-    }
-
-    const {
-      name,
-      description,
-      instructions,
-      model,
-      configuration,
-      enabledTools,
-      permissions,
-      workflowIds,
-      status,
-    } = req.body;
-
+    const user = await User.findOne({ firebaseUid: req.firebaseUser.uid });
+    if (!user) return res.status(404).json({ success: false, message: "User not found. Please sync your account first.", data: null });
+    const { name, description, instructions, model, configuration, enabledTools, permissions, workflowIds, status } = req.body;
     const worker = await Worker.findOneAndUpdate(
-      {
-        owner: user._id,
-        _id: req.params.id,
-      },
-      {
-        name,
-        description,
-        instructions,
-        model,
-        configuration,
-        enabledTools,
-        permissions,
-        workflowIds,
-        status,
-      },
-      {
-        new: true,
-        runValidators: true,
-      },
+      { owner: user._id, _id: req.params.id },
+      { name, description, instructions, model, configuration, enabledTools, permissions, workflowIds, status },
+      { new: true, runValidators: true },
     );
-
-    if (!worker) {
-      return res.status(404).json({
-        success: false,
-        message: "Worker not found.",
-        data: null,
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: "Worker updated successfully.",
-      data: worker,
-    });
-  } catch (err) {
-    next(err);
-  }
+    if (!worker) return res.status(404).json({ success: false, message: "Worker not found.", data: null });
+    return res.status(200).json({ success: true, message: "Worker updated successfully.", data: worker });
+  } catch (err) { next(err); }
 }
 
 export async function deleteWorker(req, res, next) {
   try {
-    const user = await User.findOne({
-      firebaseUid: req.firebaseUser.uid,
-    });
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found. Please sync your account first.",
-        data: null,
-      });
-    }
-
-    const worker = await Worker.findOneAndDelete({
-      owner: user._id,
-      _id: req.params.id,
-    });
-    if (!worker) {
-      return res.status(404).json({
-        success: false,
-        message: "Worker not found.",
-        data: null,
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: "Worker deleted successfully.",
-      data: worker,
-    });
-  } catch (err) {
-    next(err);
-  }
+    const user = await User.findOne({ firebaseUid: req.firebaseUser.uid });
+    if (!user) return res.status(404).json({ success: false, message: "User not found. Please sync your account first.", data: null });
+    const worker = await Worker.findOneAndDelete({ owner: user._id, _id: req.params.id });
+    if (!worker) return res.status(404).json({ success: false, message: "Worker not found.", data: null });
+    return res.status(200).json({ success: true, message: "Worker deleted successfully.", data: worker });
+  } catch (err) { next(err); }
 }
 
 export async function runWorker(req, res, next) {
-  let execution;
-  let startedAt;
-  let result;
+  let execution = null;
+  let startedAt = null;
+  let result = null;
+
   try {
     const { id } = req.params;
     const { input } = req.body;
-
-    const { user, worker, context } = await getWorkerExecutionContext(
-      req.firebaseUser.uid,
-      id,
-    );
-
+    const { user, worker, context } = await getWorkerExecutionContext(req.firebaseUser.uid, id);
     const executionPolicy = validateExecutionPolicy(worker);
 
-    execution = await createExecution(
-      user._id,
-      worker._id,
-      input,
-      worker.model,
-    );
-    const executionContext = {
-      ...context,
-      executionId: execution._id.toString(),
-      originalUserInput: input.trim(),
-    };
-
-    startedAt = new Date();
-
-    await updateExecutionStatus(execution._id, {
-      status: "RUNNING",
-      startedAt,
-    });
-
-    const runtime = createAgentRuntime();
-
-    result = await runtime.execute({
-      worker,
-      input,
-      context: executionContext,
-      executionPolicy,
-    });
-
-    result = addExecutionIdToMetadata(result, execution._id);
-
-    const usage = result.metadata?.usage;
-
-    if (result.metadata?.inputRequired) {
-      result.metadata.inputRequired.executionId = execution._id.toString();
-    }
-
-    validateExecutionCost(usage?.cost);
-
-    const completedAt = new Date();
-
-    const executionStatus = result.metadata?.inputRequired
-      ? "WAITING_FOR_INPUT"
-      : "COMPLETED";
-    const workflowState = getWorkflowState(result);
-
-    await updateExecutionStatus(execution._id, {
-      status: executionStatus,
-      output: result.output,
-      workflowId: workflowState.workflowId,
-      workflowData: workflowState.workflowData,
-      missingFields: workflowState.missingFields,
-      startedAt,
-      completedAt,
-      durationMs: completedAt.getTime() - startedAt.getTime(),
-      usage: {
-        promptTokens: result.metadata?.usage?.prompt_tokens ?? null,
-        completionTokens: result.metadata?.usage?.completion_tokens ?? null,
-        totalTokens: result.metadata?.usage?.total_tokens ?? null,
-      },
-      cost: result.metadata?.usage?.cost ?? null,
-      toolCalls: result.toolCalls || [],
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: result.metadata?.inputRequired
-        ? "Worker needs additional input to continue."
-        : "Worker executed successfully.",
-      data: result,
-    });
-  } catch (err) {
-    const completedAt = new Date();
-    if (execution) {
-      const usage = result?.metadata?.usage;
-
-      await updateExecutionStatus(execution._id, {
-        status: err.statusCode === 504 ? "TIMEOUT" : "FAILED",
-        output: result?.output || null,
-        error: {
-          message: err.userMessage || err.message,
-          code: err.code || err.statusCode || null,
-          category: err.category || null,
-          retryable: err.retryable ?? false,
-        },
-        completedAt,
-        durationMs: startedAt
-          ? completedAt.getTime() - startedAt.getTime()
-          : null,
-        usage: {
-          promptTokens: usage?.prompt_tokens ?? null,
-          completionTokens: usage?.completion_tokens ?? null,
-          totalTokens: usage?.total_tokens ?? null,
-        },
-        cost: usage?.cost ?? null,
-        toolCalls: err.toolCalls || [],
-      });
-    }
-    next(err);
-  }
-}
-
-
-export async function resumeWorkerExecution(req, res, next) {
-  let execution;
-  let startedAt;
-  let result;
-
-  try {
-    const { id, executionId } = req.params;
-    const { input } = req.body;
-
-    const { user, worker, context } = await getWorkerExecutionContext(
-      req.firebaseUser.uid,
-      id,
-    );
-
-    execution = await getExecutionById(executionId, user._id);
-
-    if (!execution || execution.worker._id.toString() !== worker._id.toString()) {
-      return res.status(404).json({
-        success: false,
-        message: "Waiting execution not found.",
-        data: null,
-      });
-    }
-
-    if (execution.status !== "WAITING_FOR_INPUT") {
-      return res.status(409).json({
-        success: false,
-        message: "Execution is not waiting for input.",
-        data: null,
-      });
-    }
-
-    const executionPolicy = validateExecutionPolicy(worker);
-
-    // Recover the fields that caused the WAITING_FOR_INPUT state from the
-    // persisted tool result. If there is exactly one missing field, the
-    // user's follow-up is deterministically assigned to that field. This
-    // keeps resume generic for any workflow, not just email/message fields.
-    const lastInputRequiredCall = [...(execution.toolCalls || [])]
-      .reverse()
-      .find(
-        (toolCall) =>
-          toolCall?.result?.status === "INPUT_REQUIRED" &&
-          normalizeMissingFields(toolCall.result.missingFields).length > 0,
-      );
-
-    const missingFields = normalizeMissingFields(
-      lastInputRequiredCall?.result?.missingFields,
-    );
-    const previousWorkflowData =
-      execution.workflowData &&
-      typeof execution.workflowData === "object"
-        ? execution.workflowData
-        : lastInputRequiredCall?.arguments?.data &&
-            typeof lastInputRequiredCall.arguments.data === "object"
-          ? lastInputRequiredCall.arguments.data
-          : {};
-
-    // Preserve every value already collected before the pause. The user's
-    // reply is layered on top of that state and the runtime will merge it
-    // into the next workflow tool call. This is generic for any schema.
-    // Assign one natural-language follow-up to the most appropriate
-    // missing field. Prefer a recipient when the answer is an email address;
-    // otherwise prefer a free-form content field such as message/text/body.
-    // This prevents a resume such as "Birthday wishes" from being consumed
-    // by an unrelated missing field like subject.
-    const resumeField = selectResumeField(missingFields, input);
-
-    const explicitWorkflowInput = resumeField
-      ? { [resumeField]: input.trim() }
-      : {};
-
-
-    const executionContext = {
-      ...context,
-      executionId: execution._id.toString(),
-      resumedFromExecutionId: execution._id.toString(),
-      explicitWorkflowInput,
-      explicitUserInput: input.trim(),
-      resumeTargetField: resumeField,
-      originalUserInput: `${execution.input}\n${input.trim()}`,
-      pendingWorkflowData: previousWorkflowData,
-      missingWorkflowFields: missingFields,
-    };
-
+    execution = await createExecution(user._id, worker._id, input, worker.model);
     startedAt = new Date();
 
     await updateExecutionStatus(execution._id, {
       status: "RUNNING",
       startedAt,
       completedAt: null,
-      durationMs: null,
+      error: { message: null, code: null, category: null, retryable: false },
     });
 
-    const runtime = createAgentRuntime();
-
-    result = await runtime.execute({
+    const engine = new WorkerExecutionEngine();
+    result = await engine.execute({
       worker,
-      input: `Original request:
-${execution.input}
-
-User provided additional information:
-${input}`,
-      context: executionContext,
+      input,
+      context,
       executionPolicy,
+      executionId: execution._id,
     });
 
     result = addExecutionIdToMetadata(result, execution._id);
-
-    const usage = result.metadata?.usage;
-    validateExecutionCost(usage?.cost);
+    validateExecutionCost(result.metadata?.usage?.cost);
 
     const completedAt = new Date();
-    const executionStatus = result.metadata?.inputRequired
-      ? "WAITING_FOR_INPUT"
-      : "COMPLETED";
-    const workflowState = getWorkflowState(result);
-
-    const previousToolCalls = Array.isArray(execution.toolCalls)
-      ? execution.toolCalls
-      : [];
-    const resumedToolCalls = Array.isArray(result.toolCalls)
-      ? result.toolCalls
-      : [];
+    const workflow = result.workflow;
 
     await updateExecutionStatus(execution._id, {
-      status: executionStatus,
-      output: result.output,
-      workflowId: workflowState.workflowId || execution.workflowId || null,
-      workflowData: workflowState.workflowData,
-      missingFields: workflowState.missingFields,
+      status: "COMPLETED",
+      output: result.output || null,
+      workflowId: workflow?.workflowId || result.metadata?.workflowId || null,
+      workflowData: workflow?.data || {},
+      missingFields: [],
+      startedAt,
       completedAt,
       durationMs: completedAt.getTime() - startedAt.getTime(),
       usage: {
@@ -589,34 +140,27 @@ ${input}`,
         totalTokens: result.metadata?.usage?.total_tokens ?? null,
       },
       cost: result.metadata?.usage?.cost ?? null,
-      toolCalls: [...previousToolCalls, ...resumedToolCalls],
+      toolCalls: [],
     });
 
     return res.status(200).json({
       success: true,
-      message: result.metadata?.inputRequired
-        ? "Worker still needs additional input."
-        : "Worker execution resumed successfully.",
+      message: "Worker executed successfully.",
       data: result,
     });
   } catch (err) {
-    const completedAt = new Date();
-
     if (execution) {
+      const completedAt = new Date();
+      const error = executionError(err);
       await updateExecutionStatus(execution._id, {
-        status: err.statusCode === 504 ? "TIMEOUT" : "FAILED",
-        error: {
-          message: err.message,
-          code: err.code || err.statusCode || null,
-        },
+        status: err?.statusCode === 504 || err?.code === "N8N_TIMEOUT" ? "TIMEOUT" : "FAILED",
+        output: result?.output || null,
+        error,
         completedAt,
-        durationMs: startedAt
-          ? completedAt.getTime() - startedAt.getTime()
-          : null,
-        toolCalls: err.toolCalls || [],
+        durationMs: startedAt ? completedAt.getTime() - startedAt.getTime() : null,
+        toolCalls: [],
       });
     }
-
     next(err);
   }
 }

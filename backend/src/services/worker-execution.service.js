@@ -7,18 +7,13 @@ export async function getWorkerExecutionContext(firebaseUid, workerId) {
   if (!workerId) throw new Error("Worker ID is required");
 
   const user = await User.findOne({ firebaseUid });
-
   if (!user) {
     const error = new Error("User not found. Please sync your account first.");
     error.statusCode = 404;
     throw error;
   }
 
-  const worker = await Worker.findOne({
-    owner: user._id,
-    _id: workerId,
-  });
-
+  const worker = await Worker.findOne({ owner: user._id, _id: workerId });
   if (!worker) {
     const error = new Error("Worker not found.");
     error.statusCode = 404;
@@ -33,15 +28,12 @@ export async function getWorkerExecutionContext(firebaseUid, workerId) {
   }
 
   const workflowIds = (worker.workflowIds || []).map((id) => id.toString());
-
   const workflows = workflowIds.length
     ? await Workflow.find({
         _id: { $in: workflowIds },
         owner: user._id,
         status: "enabled",
-      })
-        .select("_id name description category status permissions inputSchema")
-        .lean()
+      }).lean()
     : [];
 
   const workflowCatalog = workflows.map((workflow) => ({
@@ -49,9 +41,12 @@ export async function getWorkerExecutionContext(firebaseUid, workerId) {
     name: workflow.name,
     description: workflow.description,
     category: workflow.category,
+    capabilities: workflow.capabilities || [],
     status: workflow.status,
     permissions: workflow.permissions || [],
     inputSchema: workflow.inputSchema || {},
+    webhook: workflow.webhook,
+    webhookUrl: workflow.webhook?.url || null,
   }));
 
   return {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildNaturalLanguageWorkflowData,
+  buildWorkflowInstruction,
   isActionableWorkflowRequest,
   isNaturalLanguageWorkflow,
   scoreWorkflow,
@@ -67,11 +68,31 @@ describe("workflow-router", () => {
       { workerId: "worker-123" },
     );
 
-    expect(data).toEqual({
-      input: "Check my inbox.",
-      worker: "worker-123",
-      timestamp: expect.any(String),
-    });
+    expect(data.worker).toBe("worker-123");
+    expect(data.timestamp).toEqual(expect.any(String));
+    expect(data.input).toContain("Original user request (authoritative): Check my inbox.");
+    expect(data.input).toContain("Complete every action explicitly requested in the original request");
+  });
+
+  it("builds a complete instruction for conditional multi-step workflow requests", () => {
+    const instruction = buildWorkflowInstruction(
+      gmailWorkflow,
+      "Check is there any email I got from KYP Gamers today, if there is then reply to it",
+    );
+
+    expect(instruction).toContain(
+      "Original user request (authoritative): Check is there any email I got from KYP Gamers today, if there is then reply to it",
+    );
+    expect(instruction).toContain("Requested workflow actions detected: search, reply.");
+    expect(instruction).toContain(
+      "The request contains a conditional or sequential follow-up.",
+    );
+    expect(instruction).toContain(
+      "do not stop after an intermediate lookup or check.",
+    );
+    expect(instruction).toContain(
+      "Do not invent recipients, reply content, dates, identifiers, or other user-provided facts.",
+    );
   });
 
   it("recognizes actionable requests without treating knowledge questions as workflow actions", () => {

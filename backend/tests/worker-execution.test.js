@@ -101,6 +101,7 @@ describe("Worker Execution Service", () => {
       },
       owner: user._id,
       name: "Test Worker",
+      workflowIds: ["workflow-123"],
     };
 
     userMock.findOne.mockResolvedValue(user);

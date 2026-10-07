@@ -1303,6 +1303,70 @@ describe("workflow intent reliability", () => {
     );
   });
 
+  it("fails the execution when an n8n workflow explicitly reports failure", async () => {
+    const n8nTool = createN8nTool();
+    const registry = new ToolRegistry();
+    registry.register(n8nTool);
+    n8nTool.execute.mockResolvedValue({
+      success: false,
+      status: "FAILED",
+      error: {
+        code: "GMAIL_AUTH_REQUIRED",
+        message: "Gmail authorization is required.",
+      },
+    });
+
+    const provider = {
+      generate: vi.fn().mockResolvedValue({
+        output: null,
+        toolCalls: [{
+          id: "n8n-failure",
+          tool: "n8n.trigger",
+          arguments: {
+            workflowId: "workflow-gmail",
+            data: { input: "Check my email." },
+          },
+        }],
+        metadata: {},
+      }),
+    };
+
+    const runtime = new AgentRuntime(provider, registry);
+
+    await expect(
+      runtime.execute({
+        worker: {
+          model: "test-model",
+          instructions: "Use registered workflows.",
+          enabledTools: ["n8n.trigger"],
+          permissions: [],
+          configuration: {},
+        },
+        input: "Check my email.",
+        context: {
+          workflowCatalog: [{
+            id: "workflow-gmail",
+            name: "Gmail Agent",
+            description: "Manage Gmail.",
+            category: "gmail",
+            capabilities: ["email", "search"],
+            inputSchema: {
+              type: "object",
+              properties: {
+                input: { type: "string" },
+              },
+              required: ["input"],
+              additionalProperties: false,
+            },
+          }],
+        },
+      }),
+    ).rejects.toMatchObject({
+      code: "GMAIL_AUTH_REQUIRED",
+      category: "WORKFLOW_ERROR",
+    });
+  });
+
   it("deterministically triggers a natural-language workflow when the model omits the tool call", async () => {
     const n8nTool = createN8nTool();
     const registry = new ToolRegistry();

@@ -105,10 +105,22 @@ describe("Worker Execution Service", () => {
 
     userMock.findOne.mockResolvedValue(user);
     workerMock.findOne.mockResolvedValue(worker);
+    const selectMock = vi.fn().mockReturnValue({
+      lean: vi.fn().mockResolvedValue([
+        {
+          _id: { toString: () => "workflow-123" },
+          name: "Gmail Agent",
+          description: "Manage email.",
+          category: "gmail",
+          capabilities: ["email", "inbox", "reply"],
+          status: "enabled",
+          permissions: ["n8n.trigger"],
+          inputSchema: { type: "object", properties: {}, required: [] },
+        },
+      ]),
+    });
     workflowMock.find.mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        lean: vi.fn().mockResolvedValue([]),
-      }),
+      select: selectMock,
     });
 
     const result = await getWorkerExecutionContext(
@@ -125,15 +137,21 @@ describe("Worker Execution Service", () => {
       _id: "worker-123",
     });
 
-    expect(result).toEqual({
-      user,
-      worker,
-      context: {
-        userId: user._id.toString(),
-        workerId: worker._id.toString(),
-        worker,
-        workflowCatalog: [],
+    expect(selectMock).toHaveBeenCalledWith(
+      "_id name description category capabilities status permissions inputSchema",
+    );
+
+    expect(result.context.workflowCatalog).toEqual([
+      {
+        id: "workflow-123",
+        name: "Gmail Agent",
+        description: "Manage email.",
+        category: "gmail",
+        capabilities: ["email", "inbox", "reply"],
+        status: "enabled",
+        permissions: ["n8n.trigger"],
+        inputSchema: { type: "object", properties: {}, required: [] },
       },
-    });
+    ]);
   });
 });

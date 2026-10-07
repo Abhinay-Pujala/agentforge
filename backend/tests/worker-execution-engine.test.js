@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const triggerN8nWorkflowMock = vi.fn();
+const { triggerN8nWorkflowMock } = vi.hoisted(() => ({ triggerN8nWorkflowMock: vi.fn() }));
 
 vi.mock("../src/services/n8n.service.js", () => ({
   triggerN8nWorkflow: triggerN8nWorkflowMock,

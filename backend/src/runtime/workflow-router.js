@@ -214,19 +214,77 @@ export function isNaturalLanguageWorkflow(workflow) {
   );
 }
 
+function getSupportedActions(workflow) {
+  const capabilityTokens = new Set(
+    (Array.isArray(workflow?.capabilities) ? workflow.capabilities : []).flatMap(
+      tokenize,
+    ),
+  );
+
+  return Object.entries(TOKEN_ALIASES)
+    .filter(([, aliases]) => [...aliases].some((alias) => capabilityTokens.has(alias)))
+    .map(([action]) => action);
+}
+
+function getRequestedActions(input) {
+  return [...getActionMatches(new Set(tokenize(input)))];
+}
+
+function hasConditionalFollowUp(input) {
+  return /\b(?:if|when|once|after|then|otherwise|unless)\b/i.test(
+    String(input || ""),
+  );
+}
+
+export function buildWorkflowInstruction(workflow, input) {
+  const originalRequest = String(input || "").trim();
+
+  if (!originalRequest) {
+    throw new Error("Workflow instruction cannot be built from empty input.");
+  }
+
+  const requestedActions = getRequestedActions(originalRequest);
+  const supportedActions = getSupportedActions(workflow);
+  const executableActions = requestedActions.filter((action) =>
+    supportedActions.includes(action),
+  );
+
+  const actionText =
+    executableActions.length > 0
+      ? executableActions.join(", ")
+      : "the actions explicitly described in the original request";
+
+  const conditionalRule = hasConditionalFollowUp(originalRequest)
+    ? "The request contains a conditional or sequential follow-up. Evaluate the condition and continue through every requested follow-up action; do not stop after an intermediate lookup or check."
+    : "Complete every action explicitly requested in the original request; do not stop after an intermediate step.";
+
+  return [
+    "Execute the user's request completely using this registered workflow.",
+    `Original user request (authoritative): ${originalRequest}`,
+    `Requested workflow actions detected: ${actionText}.`,
+    conditionalRule,
+    "Preserve all factual details from the original request, including names, dates, filters, conditions, and requested follow-up actions.",
+    "Do not invent recipients, reply content, dates, identifiers, or other user-provided facts.",
+    "If the requested operation requires information that the user did not provide and the workflow cannot safely derive it from the execution context, return INPUT_REQUIRED with the missing fields instead of guessing.",
+    "Return the workflow result only after the requested operation has actually been completed or a deterministic INPUT_REQUIRED/FAILED result is available.",
+  ].join("\n");
+}
+
 export function buildNaturalLanguageWorkflowData(workflow, input, context = {}) {
   if (!isNaturalLanguageWorkflow(workflow)) {
     throw new Error("Workflow does not use the natural-language input contract.");
   }
 
   const properties = workflow.inputSchema.properties || {};
-  const data = {
-    input: String(input || "").trim(),
-  };
+  const originalInput = String(input || "").trim();
 
-  if (!data.input) {
+  if (!originalInput) {
     throw new Error("Workflow input cannot be empty.");
   }
+
+  const data = {
+    input: buildWorkflowInstruction(workflow, originalInput),
+  };
 
   if (Object.prototype.hasOwnProperty.call(properties, "worker") && context.workerId) {
     data.worker = String(context.workerId);

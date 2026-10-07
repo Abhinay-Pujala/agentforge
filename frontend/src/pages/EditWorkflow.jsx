@@ -9,7 +9,7 @@ const DEFAULT_INPUT_SCHEMA = JSON.stringify({ type: "object", properties: {}, ad
 export default function EditWorkflow() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const [formData, setFormData] = useState({ name: "", description: "", category: "automation", webhookUrl: "", status: "enabled", permissions: "n8n.trigger", inputSchema: DEFAULT_INPUT_SCHEMA });
+  const [formData, setFormData] = useState({ name: "", description: "", category: "automation", webhookUrl: "", status: "enabled", permissions: "n8n.trigger", inputSchema: DEFAULT_INPUT_SCHEMA, capabilities: "" });
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -39,7 +39,7 @@ export default function EditWorkflow() {
           webhookUrl: workflow.webhook?.url ?? "",
           status: workflow.status ?? "enabled",
           permissions: (workflow.permissions ?? []).join(", "),
-          inputSchema: JSON.stringify(workflow.inputSchema ?? JSON.parse(DEFAULT_INPUT_SCHEMA), null, 2),
+          inputSchema: JSON.stringify(workflow.inputSchema ?? JSON.parse(DEFAULT_INPUT_SCHEMA), null, 2),\n          capabilities: (workflow.capabilities ?? []).join(", "),
         });
       } catch (err) {
         if (mounted) setError(err.response?.data?.message || err.response?.data?.error || err.message || "Failed to load workflow.");
@@ -121,6 +121,14 @@ export default function EditWorkflow() {
             <div className="mt-6 space-y-5">
               <Field label="Name" id="name" required><input id="name" name="name" value={formData.name} onChange={handleChange} maxLength={100} className={inputClass} /></Field>
               <Field label="Description" id="description" required><textarea id="description" name="description" value={formData.description} onChange={handleChange} rows={3} maxLength={300} className={inputClass} /></Field>
+              <div>
+                <label htmlFor="capabilities" className="mb-2 block text-sm font-medium text-slate-200">
+                  Capabilities
+                </label>
+                <input id="capabilities" name="capabilities" value={formData.capabilities} onChange={handleChange} placeholder="email, gmail, search, reply" className={inputClass} />
+                <p className="mt-2 text-xs text-slate-500">Comma-separated semantic terms used for natural-language workflow discovery.</p>
+              </div>
+
               <div className="grid gap-5 sm:grid-cols-2">
                 <Field label="Category" id="category" required><input id="category" name="category" value={formData.category} onChange={handleChange} maxLength={50} className={inputClass} /></Field>
                 <Field label="Status" id="status"><select id="status" name="status" value={formData.status} onChange={handleChange} className={inputClass}><option value="enabled">Enabled</option><option value="disabled">Disabled</option></select></Field>

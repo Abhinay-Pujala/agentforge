@@ -366,7 +366,7 @@ export function buildNaturalLanguageWorkflowData(workflow, input, context = {}) 
   }
 
   const data = {
-    input: buildWorkflowInstruction(workflow, originalInput),
+    input: buildWorkflowInstruction(workflow, originalInput, context),
   };
 
   if (Object.prototype.hasOwnProperty.call(properties, "worker") && context.workerId) {

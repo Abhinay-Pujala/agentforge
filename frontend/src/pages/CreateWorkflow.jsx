@@ -24,7 +24,8 @@ export default function CreateWorkflow() {
     webhookUrl: "",
     status: "enabled",
     permissions: "n8n.trigger",
-    inputSchema: DEFAULT_INPUT_SCHEMA,\n    capabilities: "email, gmail, mail, inbox, search, find, read, reply, respond, send, draft",
+    inputSchema: DEFAULT_INPUT_SCHEMA,
+    capabilities: "email, gmail, mail, inbox, search, find, read, reply, respond, send, draft",
   });
 
   const [error, setError] = useState("");

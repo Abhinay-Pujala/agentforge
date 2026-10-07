@@ -26,6 +26,16 @@ const workflowSchema = new mongoose.Schema(
       trim: true,
       maxlength: 50,
     },
+    capabilities: {
+      type: [String],
+      default: [],
+      set: (values) =>
+        Array.isArray(values)
+          ? values
+              .map((value) => String(value).trim().toLowerCase())
+              .filter(Boolean)
+          : [],
+    },
     webhook: {
       provider: {
         type: String,

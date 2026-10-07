@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildNaturalLanguageWorkflowData,
   buildWorkflowInstruction,
+  buildWorkflowPlan,
   isActionableWorkflowRequest,
   isNaturalLanguageWorkflow,
   scoreWorkflow,
@@ -72,6 +73,19 @@ describe("workflow-router", () => {
     expect(data.timestamp).toEqual(expect.any(String));
     expect(data.input).toContain("Original user request (authoritative): Check my inbox.");
     expect(data.input).toContain("Complete every action explicitly requested in the original request");
+  });
+
+  it("creates an ordered resumable execution plan", () => {
+    const plan = buildWorkflowPlan(
+      gmailWorkflow,
+      "Check is there any email I got from KYP Gamers today, if there is then reply to it",
+    );
+
+    expect(plan.version).toBe(2);
+    expect(plan.policy.executeInOrder).toBe(true);
+    expect(plan.policy.evaluateConditionsBeforeDependentInput).toBe(true);
+    expect(plan.actions.map((step) => step.action)).toEqual(["search", "reply"]);
+    expect(plan.actions[1].dependsOn).toEqual(["step-1"]);
   });
 
   it("builds a complete instruction for conditional multi-step workflow requests", () => {

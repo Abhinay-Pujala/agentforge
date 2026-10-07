@@ -252,36 +252,26 @@ function hasConditionalFollowUp(input) {
   );
 }
 
-export function buildWorkflowInstruction(workflow, input, context = {}) {
+export function buildWorkflowPlan(workflow, input, context = {}) {
   const originalRequest = String(input || "").trim();
+  const actions = getRequestedActionsInOrder(originalRequest);
 
-  if (!originalRequest) {
-    throw new Error("Workflow instruction cannot be built from empty input.");
-  }
-
-  const requestedActions = getRequestedActionsInOrder(originalRequest);
-  const supportedActions = getSupportedActions(workflow);
-  const executableActions = requestedActions.filter((action) =>
-    supportedActions.includes(action),
-  );
-
-  const executionActions = requestedActions.map((action, index) => ({
-    id: `step-${index + 1}`,
-    action,
-    order: index + 1,
-    dependsOn:
-      hasConditionalFollowUp(originalRequest) && index > 0
-        ? [`step-${index}`]
-        : [],
-    status: "PENDING",
-  }));
-
-  const executionPlan = {
+  return {
     version: 2,
     workflowId: workflow?.id || null,
+    workflowName: workflow?.name || null,
     mode: "deterministic-workflow-execution",
     originalRequest,
-    actions: executionActions,
+    actions: actions.map((action, index) => ({
+      id: `step-${index + 1}`,
+      action,
+      order: index + 1,
+      dependsOn:
+        hasConditionalFollowUp(originalRequest) && index > 0
+          ? [`step-${index}`]
+          : [],
+      status: "PENDING",
+    })),
     policy: {
       executeInOrder: true,
       evaluateConditionsBeforeDependentInput: true,
@@ -298,6 +288,22 @@ export function buildWorkflowInstruction(workflow, input, context = {}) {
         }
       : null,
   };
+}
+
+export function buildWorkflowInstruction(workflow, input, context = {}) {
+  const originalRequest = String(input || "").trim();
+
+  if (!originalRequest) {
+    throw new Error("Workflow instruction cannot be built from empty input.");
+  }
+
+  const requestedActions = getRequestedActionsInOrder(originalRequest);
+  const supportedActions = getSupportedActions(workflow);
+  const executableActions = requestedActions.filter((action) =>
+    supportedActions.includes(action),
+  );
+
+  const executionPlan = buildWorkflowPlan(workflow, originalRequest, context);
 
   const actionText =
     requestedActions.length > 0

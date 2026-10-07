@@ -83,13 +83,16 @@ describe("workflow-router", () => {
     expect(instruction).toContain(
       "Original user request (authoritative): Check is there any email I got from KYP Gamers today, if there is then reply to it",
     );
-    expect(instruction).toContain("Requested workflow actions detected: search, reply.");
+    expect(instruction).toContain(
+      "Requested workflow actions detected from the user's request: search, reply.",
+    );
     expect(instruction).toContain(
       "The request contains a conditional or sequential follow-up.",
     );
     expect(instruction).toContain(
       "do not stop after an intermediate lookup or check.",
-    );\n    expect(instruction).toContain(
+    );
+    expect(instruction).toContain(
       "Execute prerequisite actions before evaluating whether dependent actions can proceed.",
     );
     expect(instruction).toContain(

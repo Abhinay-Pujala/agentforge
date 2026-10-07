@@ -32,6 +32,26 @@ const WORKFLOW_CATEGORY_HINTS = {
     "message",
     "messages",
   ]),
+  gmail: new Set([
+    "email",
+    "emails",
+    "mail",
+    "gmail",
+    "inbox",
+    "unread",
+    "message",
+    "messages",
+  ]),
+  mail: new Set([
+    "email",
+    "emails",
+    "mail",
+    "gmail",
+    "inbox",
+    "unread",
+    "message",
+    "messages",
+  ]),
 };
 
 function inferWorkflowForInput(workflowCatalog, input) {

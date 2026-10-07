@@ -262,6 +262,7 @@ export function buildWorkflowInstruction(workflow, input) {
     ? [
         "The request contains a conditional or sequential follow-up.",
         "Execute prerequisite actions before evaluating whether dependent actions can proceed.",
+        "Do not stop after an intermediate lookup or check; complete the requested follow-up when its condition is satisfied.",
         "Do not request input for a dependent action before its prerequisite condition has been evaluated.",
         "For example, for 'find an email and then reply', search for the matching email first. If none exists, finish with COMPLETED and do not request a reply message. If one exists but reply content is missing, return INPUT_REQUIRED for the reply message and preserve the found email/thread identifiers for resume.",
         "After receiving INPUT_REQUIRED data on resume, continue the pending dependent action using the preserved execution state; do not repeat completed prerequisite side effects unless necessary to recover state.",

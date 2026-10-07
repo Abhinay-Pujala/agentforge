@@ -15,7 +15,10 @@
  * n8n → AgentForge
  * {
  *   success: true,
- *   result: object,
+ *   status?: "COMPLETED" | "INPUT_REQUIRED" | "FAILED",
+ *   result?: object,
+ *   data?: object,
+ *   message?: string,
  *   missingFields?: string[] | object
  * }
  */
@@ -40,6 +43,48 @@ function normalizeMissingFields(value) {
   return [];
 }
 
+function normalizeStatus(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const status = value.trim().toUpperCase();
+  return ["COMPLETED", "INPUT_REQUIRED", "FAILED"].includes(status)
+    ? status
+    : null;
+}
+
+function getExplicitStatus(result) {
+  return normalizeStatus(
+    result?.status ??
+      result?.result?.status ??
+      result?.data?.status,
+  );
+}
+
+function getInputRequiredMessage(result) {
+  if (typeof result?.message === "string" && result.message.trim()) {
+    return result.message.trim();
+  }
+
+  if (
+    typeof result?.result?.message === "string" &&
+    result.result.message.trim()
+  ) {
+    return result.result.message.trim();
+  }
+
+  if (typeof result?.raw === "string") {
+    const raw = result.raw.trim();
+    const match = raw.match(/^INPUT_REQUIRED\\s*:\\s*(.+)$/i);
+    if (match?.[1]) {
+      return match[1].trim();
+    }
+  }
+
+  return "Additional workflow input is required before this workflow can continue.";
+}
+
 export function buildN8nPayload({
   workflowId,
   workflow,
@@ -62,26 +107,44 @@ export function buildN8nSuccessResponse(result = {}) {
   const missingFields = normalizeMissingFields(
     result?.missingFields ?? result?.result?.missingFields,
   );
+  const explicitStatus = getExplicitStatus(result);
+  const rawInputRequired =
+    typeof result?.raw === "string" &&
+    /^INPUT_REQUIRED\\s*:/i.test(result.raw.trim());
 
-  if (missingFields.length > 0) {
+  if (explicitStatus === "FAILED" || result?.success === false) {
+    return {
+      success: false,
+      status: "FAILED",
+      error: result.error || result.result?.error || {
+        code: "N8N_WORKFLOW_FAILED",
+        message: "The n8n workflow reported a failure.",
+      },
+      result,
+    };
+  }
+
+  if (
+    explicitStatus === "INPUT_REQUIRED" ||
+    missingFields.length > 0 ||
+    rawInputRequired
+  ) {
     return {
       success: true,
       status: "INPUT_REQUIRED",
       missingFields,
+      message: getInputRequiredMessage(result),
+      data: result?.data ?? result?.result?.data,
       result,
-      message:
-        "Additional workflow input is required before this workflow can continue.",
     };
   }
 
-  if (result?.success === false) {
+  if (explicitStatus === "COMPLETED") {
     return {
-      success: false,
-      status: "FAILED",
-      error: result.error || {
-        code: "N8N_WORKFLOW_FAILED",
-        message: "The n8n workflow reported a failure.",
-      },
+      success: true,
+      status: "COMPLETED",
+      message: result?.message ?? result?.result?.message,
+      data: result?.data ?? result?.result?.data,
       result,
     };
   }

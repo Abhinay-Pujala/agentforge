@@ -156,17 +156,17 @@ describe("Worker Execution Service", () => {
     ]);
   });
   it("rejects assigned workflows that are missing or disabled", async () => {
-    User.findOne.mockResolvedValue({
+    userMock.findOne.mockResolvedValue({
       _id: "user-123",
     });
 
-    Worker.findOne.mockResolvedValue({
+    workerMock.findOne.mockResolvedValue({
       _id: "worker-123",
       status: "enabled",
       workflowIds: ["workflow-123", "workflow-missing"],
     });
 
-    Workflow.find.mockReturnValue({
+    workflowMock.find.mockReturnValue({
       select: vi.fn().mockReturnValue({
         lean: vi.fn().mockResolvedValue([
           {

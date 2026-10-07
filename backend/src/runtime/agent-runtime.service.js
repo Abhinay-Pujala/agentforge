@@ -1,6 +1,11 @@
 import { buildPrompt } from "./prompt-builder.js";
 import { normalizeModelResponse } from "./model-response.js";
 import ToolExecutionService from "../tools/tool-execution.service.js";
+import {
+  buildNaturalLanguageWorkflowData,
+  selectWorkflow,
+  isNaturalLanguageWorkflow,
+} from "./workflow-router.js";
 
 const DEFAULT_MAX_TOOL_ROUNDS = 8;
 
@@ -9,255 +14,6 @@ function tokenize(value) {
     .toLowerCase()
     .split(/[^a-z0-9]+/)
     .filter((token) => token.length > 2);
-}
-
-const WORKFLOW_CATEGORY_HINTS = {
-  calendar: new Set([
-    "calendar",
-    "meeting",
-    "meetings",
-    "event",
-    "events",
-    "schedule",
-    "scheduled",
-    "appointment",
-    "appointments",
-  ]),
-  email: new Set([
-    "email",
-    "emails",
-    "mail",
-    "inbox",
-    "unread",
-    "message",
-    "messages",
-  ]),
-  gmail: new Set([
-    "email",
-    "emails",
-    "mail",
-    "gmail",
-    "inbox",
-    "unread",
-    "message",
-    "messages",
-  ]),
-  mail: new Set([
-    "email",
-    "emails",
-    "mail",
-    "gmail",
-    "inbox",
-    "unread",
-    "message",
-    "messages",
-  ]),
-};
-
-function inferWorkflowForInput(workflowCatalog, input) {
-  if (!Array.isArray(workflowCatalog) || workflowCatalog.length === 0) {
-    return null;
-  }
-
-  const inputTokens = new Set(tokenize(input));
-
-  const ranked = workflowCatalog
-    .map((workflow) => {
-      const searchable = [
-        workflow.name,
-        workflow.description,
-        workflow.category,
-      ]
-        .filter(Boolean)
-        .join(" ");
-
-      const matchedTokens = tokenize(searchable).filter((token) =>
-        inputTokens.has(token),
-      );
-
-      const capabilityTokens = Array.isArray(workflow.capabilities)
-        ? workflow.capabilities.flatMap((capability) => tokenize(capability))
-        : [];
-
-      const matchedCapabilities = capabilityTokens.filter((token) =>
-        inputTokens.has(token),
-      );
-
-      const category = String(workflow.category || "").toLowerCase();
-      const categoryHints = WORKFLOW_CATEGORY_HINTS[category] || new Set();
-      const categoryHintMatches = [...categoryHints].filter((token) =>
-        inputTokens.has(token),
-      );
-
-      return {
-        workflow,
-        // Capabilities are explicit semantic metadata and therefore carry
-        // more weight than incidental words from a description.
-        score:
-          matchedCapabilities.length * 4 +
-          categoryHintMatches.length * 2 +
-          matchedTokens.length,
-        matchedCapabilities,
-        matchedTokens,
-        categoryHintMatches,
-      };
-    })
-    .sort((a, b) => b.score - a.score);
-
-  return ranked[0]?.score > 0 ? ranked[0].workflow : null;
-}
-
-const WORKFLOW_ACTION_WORDS = new Set([
-  "send",
-  "reply",
-  "respond",
-  "create",
-  "add",
-  "update",
-  "edit",
-  "delete",
-  "remove",
-  "find",
-  "lookup",
-  "search",
-  "fetch",
-  "get",
-  "retrieve",
-  "save",
-  "store",
-  "insert",
-  "append",
-  "notify",
-  "schedule",
-  "trigger",
-  "run",
-  "execute",
-  "generate",
-  "post",
-  "publish",
-  "upload",
-  "download",
-  "sync",
-  "export",
-  "import",
-  "move",
-  "copy",
-  "archive",
-  "assign",
-]);
-
-function isConversationalInput(input) {
-  const normalized = String(input || "")
-    .trim()
-    .toLowerCase();
-
-  if (!normalized) return true;
-
-  return (
-    /^(?:hi|hello|hey|yo|thanks|thank you|good morning|good afternoon|good evening)[!,.s]*$/i.test(
-      normalized,
-    ) ||
-    /^(?:what can you do|what do you do|who are you|how can you help|what are your capabilities)[?!.,s]*$/i.test(
-      normalized,
-    ) ||
-    /^(?:can you|could you) (?:explain|tell me about|describe|help me understand)\b/i.test(
-      normalized,
-    ) ||
-    /^(?:how do i|how can i|what is|what are|why does|why is|tell me about)\b/i.test(
-      normalized,
-    ) ||
-    /^(?:can|could|would|should|do|does|is|are)\b[^\n]*\?$/i.test(normalized)
-  );
-}
-function isWorkflowPlaceholderInput(input) {
-  const normalized = String(input || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[.!?]+$/, "")
-    .replace(/\s+/g, " ");
-
-  // The Run Worker UI uses this as its initial placeholder. It is status
-  // text, not a user request, so it must never unlock a side-effecting
-  // workflow.
-  return new Set([
-    "worker is ready to execute",
-    "worker ready to execute",
-    "ready to execute",
-  ]).has(normalized);
-}
-
-const WORKFLOW_REQUEST_WORDS = new Set([
-  "show",
-  "list",
-  "check",
-  "view",
-  "see",
-  "have",
-  "anything",
-  "any",
-  "upcoming",
-  "latest",
-  "today",
-  "tomorrow",
-  "yesterday",
-  "week",
-  "month",
-  "meeting",
-  "meetings",
-  "event",
-  "events",
-  "scheduled",
-  "schedule",
-  "unread",
-  "recent",
-  "new",
-]);
-
-function hasWorkflowRequestContext(input) {
-  return tokenize(input).some((token) => WORKFLOW_REQUEST_WORDS.has(token));
-}
-
-function hasWorkflowIntent(input, workflowCatalog = []) {
-  if (isWorkflowPlaceholderInput(input)) {
-    return false;
-  }
-
-  const workflow = inferWorkflowForInput(workflowCatalog, input);
-  const tokens = tokenize(input);
-  const hasExplicitAction = tokens.some((token) =>
-    WORKFLOW_ACTION_WORDS.has(token),
-  );
-  const hasRequestContext = hasWorkflowRequestContext(input);
-
-  // A workflow must be relevant to the request before any side effecting
-  // tool can be exposed. This prevents a single registered workflow from
-  // hijacking unrelated requests such as "create a function".
-  if (!workflow) {
-    return false;
-  }
-
-  // Explicit actions are strong evidence, but only when a relevant workflow
-  // was actually discovered.
-  if (hasExplicitAction) {
-    return true;
-  }
-
-  // Conversational/knowledge questions should remain ordinary conversation.
-  if (isConversationalInput(input)) {
-    return hasRequestContext;
-  }
-
-  // Natural requests such as "What do I have on my calendar tomorrow?"
-  // contain request context without necessarily using an action verb.
-  return hasRequestContext;
-}
-
-function shouldAttemptWorkflow(input, workflowCatalog) {
-  if (!Array.isArray(workflowCatalog) || workflowCatalog.length === 0) {
-    return false;
-  }
-
-  return hasWorkflowIntent(input, workflowCatalog);
 }
 
 function isPlaceholderWorkflowValue(value, fieldName = "") {
@@ -363,6 +119,21 @@ function createFallbackWorkflowToolCall(workflow, input, context = {}) {
   };
 }
 
+function createDeterministicWorkflowToolCall(workflow, input, context) {
+  if (!isNaturalLanguageWorkflow(workflow)) {
+    return null;
+  }
+
+  return {
+    id: `n8n-deterministic-${workflow.id}`,
+    tool: "n8n.trigger",
+    arguments: {
+      workflowId: workflow.id,
+      data: buildNaturalLanguageWorkflowData(workflow, input, context),
+    },
+  };
+}
+
 function getWorkflowExecutionKey(toolCall) {
   if (toolCall?.tool !== "n8n.trigger") {
     return null;
@@ -417,11 +188,16 @@ class AgentRuntime {
 
     const messages = buildPrompt(worker, input, context);
 
+    const workflowSelection = selectWorkflow(context.workflowCatalog, input);
     const workflowIntentDetected =
       Boolean(context.resumedFromExecutionId) ||
-      shouldAttemptWorkflow(input, context.workflowCatalog);
+      workflowSelection.status === "MATCHED";
 
     const enabledToolNames = new Set(worker.enabledTools || []);
+
+    if (workflowIntentDetected) {
+      enabledToolNames.add("n8n.trigger");
+    }
 
     // Do not expose the side-effecting n8n tool to ordinary conversation.
     // This is enforced here rather than only through prompting.
@@ -493,11 +269,8 @@ class AgentRuntime {
         hasWorkflowTools &&
         workflowCallRequired
       ) {
-        const workflow = inferWorkflowForInput(
-          context.workflowCatalog,
-          input,
-        );
-        const fallbackToolCall = createFallbackWorkflowToolCall(
+        const workflow = workflowSelection.workflow;
+        const fallbackToolCall = createDeterministicWorkflowToolCall(
           workflow,
           input,
           context,
@@ -527,10 +300,7 @@ class AgentRuntime {
         // repeatedly ask the model to retry; this execution gets one model
         // decision and one workflow attempt.
         if (workflowCallRequired && hasWorkflowTools) {
-          const workflow = inferWorkflowForInput(
-            context.workflowCatalog,
-            input,
-          );
+          const workflow = workflowSelection.workflow;
 
           return {
             success: true,

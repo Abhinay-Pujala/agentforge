@@ -1303,17 +1303,22 @@ describe("workflow intent reliability", () => {
     );
   });
 
-  it("returns workflow inputRequired instead of completing silently when the model omits the required workflow call", async () => {
+  it("deterministically triggers a natural-language workflow when the model omits the tool call", async () => {
     const n8nTool = createN8nTool();
     const registry = new ToolRegistry();
     registry.register(n8nTool);
 
     const provider = {
       generate: vi.fn().mockResolvedValue({
-        output: "I will check your email.",
+        output: "I'll check your email.",
         toolCalls: [],
         metadata: {},
       }),
+    };
+
+    n8nTool.schema.properties = {
+      workflowId: { type: "string" },
+      data: { type: "object", additionalProperties: true },
     };
 
     const runtime = new AgentRuntime(provider, registry);
@@ -1321,7 +1326,8 @@ describe("workflow intent reliability", () => {
       worker: {
         model: "test-model",
         instructions: "Use registered workflows.",
-        enabledTools: ["n8n.trigger"],
+        enabledTools: [],
+        permissions: [],
         configuration: {},
       },
       input: "Check my email from KYP Gamers and reply to it.",
@@ -1334,17 +1340,33 @@ describe("workflow intent reliability", () => {
           capabilities: ["email", "inbox", "search", "reply"],
           inputSchema: {
             type: "object",
-            properties: {},
-            required: [],
+            properties: {
+              input: { type: "string" },
+            },
+            required: ["input"],
+            additionalProperties: false,
           },
         }],
+        workerId: "worker-123",
       },
     });
 
-    expect(result.metadata.inputRequired).toMatchObject({
-      workflowId: "workflow-gmail",
-      reason: "WORKFLOW_TOOL_NOT_CALLED",
+    expect(n8nTool.execute).toHaveBeenCalledTimes(1);
+    expect(n8nTool.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflowId: "workflow-gmail",
+        data: {
+          input: "Check my email from KYP Gamers and reply to it.",
+        },
+      }),
+      expect.objectContaining({
+        workerId: "worker-123",
+      }),
+    );
+    expect(result.toolCalls).toHaveLength(1);
+    expect(result.toolCalls[0]).toMatchObject({
+      tool: "n8n.trigger",
+      status: "COMPLETED",
     });
-    expect(n8nTool.execute).not.toHaveBeenCalled();
   });
 });

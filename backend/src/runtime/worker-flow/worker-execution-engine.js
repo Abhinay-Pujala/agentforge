@@ -10,7 +10,8 @@ function buildWorkflowData(workflow, input, worker, executionId) {
   const data = {};
   const original = String(input || "");
 
-  // The original request is the stable AgentForge -> n8n contract. It is always present so an n8n Agent can reason over the complete user message, even when its registered schema is minimal.\n  data.input = original;\n  if (Object.prototype.hasOwnProperty.call(properties, "originalRequest")) data.originalRequest = original;
+  // The original request is the stable AgentForge -> n8n contract. It is always present so an n8n Agent can reason over the complete user message, even when its registered schema is minimal.
+  data.input = original;\n  if (Object.prototype.hasOwnProperty.call(properties, "originalRequest")) data.originalRequest = original;
   if (Object.prototype.hasOwnProperty.call(properties, "request")) data.request = original;
   if (Object.prototype.hasOwnProperty.call(properties, "query")) data.query = original;
   if (Object.prototype.hasOwnProperty.call(properties, "prompt")) data.prompt = original;

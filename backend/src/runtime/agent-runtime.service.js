@@ -6,6 +6,7 @@ import {
   selectWorkflow,
   isNaturalLanguageWorkflow,
   buildWorkflowInstruction,
+  buildWorkflowPlan,
 } from "./workflow-router.js";
 
 const DEFAULT_MAX_TOOL_ROUNDS = 8;
@@ -140,6 +141,10 @@ class AgentRuntime {
     const messages = buildPrompt(worker, input, context);
 
     const workflowSelection = selectWorkflow(context.workflowCatalog, input);
+    const workflowPlan =
+      workflowSelection.status === "MATCHED"
+        ? buildWorkflowPlan(workflowSelection.workflow, input, context)
+        : context.workflowPlan || null;
     const workflowIntentDetected =
       Boolean(context.resumedFromExecutionId) ||
       workflowSelection.status === "MATCHED";
@@ -567,14 +572,7 @@ class AgentRuntime {
               "Additional information is required before this action can continue.",
             metadata: {
               inputRequired,
-              workflowPlan:
-                context.workflowPlan ||
-                (workflowSelection.workflow
-                  ? {
-                      version: 2,
-                      workflowId: workflowSelection.workflow.id,
-                    }
-                  : null),
+              workflowPlan,
             },
             toolCalls: toolCallRecords,
           };

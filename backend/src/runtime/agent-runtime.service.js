@@ -319,6 +319,50 @@ function getRequiredWorkflowFields(workflow) {
     : [];
 }
 
+
+function createFallbackWorkflowToolCall(workflow, input, context = {}) {
+  if (!workflow || typeof input !== "string" || !input.trim()) {
+    return null;
+  }
+
+  const properties = workflow?.inputSchema?.properties || {};
+  const inputProperty = properties.input;
+
+  // A natural-language workflow contract can be executed deterministically
+  // without relying on model-native tool calling. This is especially
+  // important for providers/models that expose tools but return plain text
+  // instead of a structured tool call.
+  if (!inputProperty || inputProperty.type !== "string") {
+    return null;
+  }
+
+  const data = {
+    input: input.trim(),
+  };
+
+  // Preserve optional server metadata when the registered schema explicitly
+  // allows it. These values are application context, not model-invented data.
+  if (
+    Object.prototype.hasOwnProperty.call(properties, "worker") &&
+    context.workerId
+  ) {
+    data.worker = String(context.workerId);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(properties, "timestamp")) {
+    data.timestamp = new Date().toISOString();
+  }
+
+  return {
+    id: "runtime-n8n-fallback-1",
+    tool: "n8n.trigger",
+    arguments: {
+      workflowId: workflow.id,
+      data,
+    },
+  };
+}
+
 function getWorkflowExecutionKey(toolCall) {
   if (toolCall?.tool !== "n8n.trigger") {
     return null;
@@ -431,12 +475,38 @@ class AgentRuntime {
       // A workflow request may contain multiple independent actions. Execute
       // each registered workflow call sequentially while preventing exact
       // duplicate workflow actions from running more than once.
-      const toolCallsForExecution =
+      let toolCallsForExecution =
         hasWorkflowTools && workflowIntentDetected
           ? normalizedResponse.toolCalls.filter(
               (call) => call.tool === "n8n.trigger",
             )
           : normalizedResponse.toolCalls;
+
+      // Some OpenRouter model/provider combinations can expose tools but still
+      // return a normal text response instead of a structured tool call.
+      // For a registered natural-language workflow (schema has an `input`
+      // string), execution is deterministic: invoke that workflow with the
+      // original user request rather than accepting a false "I'll do it"
+      // response as completion.
+      if (
+        toolCallsForExecution.length === 0 &&
+        hasWorkflowTools &&
+        workflowCallRequired
+      ) {
+        const workflow = inferWorkflowForInput(
+          context.workflowCatalog,
+          input,
+        );
+        const fallbackToolCall = createFallbackWorkflowToolCall(
+          workflow,
+          input,
+          context,
+        );
+
+        if (fallbackToolCall) {
+          toolCallsForExecution = [fallbackToolCall];
+        }
+      }
 
       if (toolCallsForExecution.length === 0) {
         if (inputRequired) {

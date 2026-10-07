@@ -93,18 +93,43 @@ function getWorkflowState(result) {
     .reverse()
     .find((call) => call?.tool === "n8n.trigger");
 
-  const workflowResult = workflowCall?.result;
+  const workflowResult = workflowCall?.result || {};
+  const argumentData =
+    workflowCall?.arguments?.data &&
+    typeof workflowCall.arguments.data === "object"
+      ? workflowCall.arguments.data
+      : {};
+  const returnedData =
+    workflowResult?.data &&
+    typeof workflowResult.data === "object"
+      ? workflowResult.data
+      : {};
 
   return {
     workflowId:
       workflowCall?.arguments?.workflowId ||
       workflowResult?.workflowId ||
       null,
-    workflowData:
-      workflowCall?.arguments?.data &&
-      typeof workflowCall.arguments.data === "object"
-        ? workflowCall.arguments.data
-        : {},
+    workflowData: {
+      ...argumentData,
+      ...returnedData,
+    },
+    workflowPlan:
+      workflowResult?.workflowPlan ||
+      workflowResult?.data?.workflowPlan ||
+      null,
+    checkpoint:
+      workflowResult?.checkpoint ||
+      workflowResult?.data?.checkpoint ||
+      returnedData,
+    pendingInput:
+      workflowResult?.status === "INPUT_REQUIRED"
+        ? {
+            message: workflowResult?.message || null,
+            missingFields: normalizeMissingFields(workflowResult?.missingFields),
+            data: returnedData,
+          }
+        : null,
     missingFields: normalizeMissingFields(workflowResult?.missingFields),
   };
 }

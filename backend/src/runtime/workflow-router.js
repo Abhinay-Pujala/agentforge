@@ -230,24 +230,74 @@ function getRequestedActions(input) {
   return [...getActionMatches(new Set(tokenize(input)))];
 }
 
+function getRequestedActionsInOrder(input) {
+  const tokens = tokenize(input);
+  const actions = [];
+
+  for (const token of tokens) {
+    for (const [action, aliases] of Object.entries(TOKEN_ALIASES)) {
+      if (aliases.has(token) && !actions.includes(action)) {
+        actions.push(action);
+        break;
+      }
+    }
+  }
+
+  return actions;
+}
+
 function hasConditionalFollowUp(input) {
   return /\b(?:if|when|once|after|then|otherwise|unless)\b/i.test(
     String(input || ""),
   );
 }
 
-export function buildWorkflowInstruction(workflow, input) {
+export function buildWorkflowInstruction(workflow, input, context = {}) {
   const originalRequest = String(input || "").trim();
 
   if (!originalRequest) {
     throw new Error("Workflow instruction cannot be built from empty input.");
   }
 
-  const requestedActions = getRequestedActions(originalRequest);
+  const requestedActions = getRequestedActionsInOrder(originalRequest);
   const supportedActions = getSupportedActions(workflow);
   const executableActions = requestedActions.filter((action) =>
     supportedActions.includes(action),
   );
+
+  const executionActions = requestedActions.map((action, index) => ({
+    id: `step-${index + 1}`,
+    action,
+    order: index + 1,
+    dependsOn:
+      hasConditionalFollowUp(originalRequest) && index > 0
+        ? [`step-${index}`]
+        : [],
+    status: "PENDING",
+  }));
+
+  const executionPlan = {
+    version: 2,
+    workflowId: workflow?.id || null,
+    mode: "deterministic-workflow-execution",
+    originalRequest,
+    actions: executionActions,
+    policy: {
+      executeInOrder: true,
+      evaluateConditionsBeforeDependentInput: true,
+      neverInventUserInput: true,
+      preserveCheckpointOnInputRequired: true,
+      resumeFromCheckpoint: true,
+    },
+    resume: context?.resumedFromExecutionId
+      ? {
+          executionId: context.resumedFromExecutionId,
+          pendingFields: context.missingWorkflowFields || [],
+          checkpoint: context.pendingWorkflowData || {},
+          latestUserInput: context.explicitUserInput || "",
+        }
+      : null,
+  };
 
   const actionText =
     requestedActions.length > 0
@@ -284,6 +334,8 @@ export function buildWorkflowInstruction(workflow, input) {
     "A missing value for a later dependent action is not a reason to skip its prerequisite actions.",
     "When INPUT_REQUIRED is necessary, return the exact missing fields and preserve all data already collected by previous workflow steps.",
     "Return the workflow result only after the requested operation has actually been completed, a deterministic INPUT_REQUIRED state has been reached after prerequisite actions, or a deterministic FAILED result is available.",
+    "Execution plan (authoritative):",
+    JSON.stringify(executionPlan),
   ].filter(Boolean).join("\n");
 }
 
@@ -313,3 +365,4 @@ export function buildNaturalLanguageWorkflowData(workflow, input, context = {}) 
 
   return data;
 }
+\nexport { getRequestedActionsInOrder };\n

@@ -12,7 +12,8 @@ import {
 const gmailWorkflow = {
   id: "workflow-gmail",
   name: "Gmail Workflow",
-  description: "AI-powered Gmail integration for reading, searching, drafting, replying to, and sending emails.",
+  description:
+    "AI-powered Gmail integration for reading, searching, drafting, replying to, and sending emails.",
   category: "productivity",
   capabilities: ["email", "gmail", "search", "reply"],
   status: "enabled",
@@ -71,8 +72,12 @@ describe("workflow-router", () => {
 
     expect(data.worker).toBe("worker-123");
     expect(data.timestamp).toEqual(expect.any(String));
-    expect(data.input).toContain("Original user request (authoritative): Check my inbox.");
-    expect(data.input).toContain("Complete every action explicitly requested in the original request");
+    expect(data.input).toContain(
+      "Original user request (authoritative): Check my inbox.",
+    );
+    expect(data.input).toContain(
+      "Complete every action explicitly requested in the original request",
+    );
   });
 
   it("creates an ordered resumable execution plan", () => {
@@ -84,7 +89,10 @@ describe("workflow-router", () => {
     expect(plan.version).toBe(2);
     expect(plan.policy.executeInOrder).toBe(true);
     expect(plan.policy.evaluateConditionsBeforeDependentInput).toBe(true);
-    expect(plan.actions.map((step) => step.action)).toEqual(["search", "reply"]);
+    expect(plan.actions.map((step) => step.action)).toEqual([
+      "search",
+      "reply",
+    ]);
     expect(plan.actions[1].dependsOn).toEqual(["step-1"]);
   });
 
@@ -109,9 +117,7 @@ describe("workflow-router", () => {
     expect(instruction).toContain(
       "Execute prerequisite actions before evaluating whether dependent actions can proceed.",
     );
-    expect(instruction).toContain(
-      "search for the matching email first.",
-    );
+    expect(instruction).toContain("search for the matching email first.");
     expect(instruction).toContain(
       "If one exists but reply content is missing, return INPUT_REQUIRED for the reply message",
     );
@@ -142,10 +148,7 @@ describe("workflow-router", () => {
       capabilities: ["email", "search"],
     };
 
-    const result = selectWorkflow(
-      [calendarA, calendarB],
-      "Search my email",
-    );
+    const result = selectWorkflow([calendarA, calendarB], "Search my email");
 
     expect(result.status).toBe("AMBIGUOUS");
     expect(result.workflow).toBeNull();

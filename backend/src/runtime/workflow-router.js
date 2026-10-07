@@ -1,6 +1,27 @@
 const TOKEN_ALIASES = {
-  search: new Set(["search", "find", "lookup", "look", "check", "show", "view", "see", "get", "retrieve", "fetch", "read", "list"]),
-  reply: new Set(["reply", "replies", "replied", "respond", "response", "responding"]),
+  search: new Set([
+    "search",
+    "find",
+    "lookup",
+    "look",
+    "check",
+    "show",
+    "view",
+    "see",
+    "get",
+    "retrieve",
+    "fetch",
+    "read",
+    "list",
+  ]),
+  reply: new Set([
+    "reply",
+    "replies",
+    "replied",
+    "respond",
+    "response",
+    "responding",
+  ]),
   send: new Set(["send", "sending", "sent", "deliver", "forward"]),
   draft: new Set(["draft", "drafts", "compose", "write"]),
   create: new Set(["create", "add", "make", "new", "book"]),
@@ -10,16 +31,65 @@ const TOKEN_ALIASES = {
 };
 
 const DOMAIN_ALIASES = {
-  email: new Set(["email", "emails", "mail", "gmail", "inbox", "message", "messages"]),
-  calendar: new Set(["calendar", "meeting", "meetings", "event", "events", "appointment", "appointments", "schedule"]),
+  email: new Set([
+    "email",
+    "emails",
+    "mail",
+    "gmail",
+    "inbox",
+    "message",
+    "messages",
+  ]),
+  calendar: new Set([
+    "calendar",
+    "meeting",
+    "meetings",
+    "event",
+    "events",
+    "appointment",
+    "appointments",
+    "schedule",
+  ]),
 };
 
 const REQUEST_CONTEXT = new Set([
-  "check", "show", "list", "view", "see", "find", "lookup", "search",
-  "get", "fetch", "retrieve", "read", "send", "reply", "respond", "draft",
-  "create", "add", "update", "edit", "delete", "remove", "schedule", "book",
-  "cancel", "archive", "sync", "run", "execute", "trigger",
-  "latest", "recent", "unread", "upcoming", "today", "tomorrow", "yesterday",
+  "check",
+  "show",
+  "list",
+  "view",
+  "see",
+  "find",
+  "lookup",
+  "search",
+  "get",
+  "fetch",
+  "retrieve",
+  "read",
+  "send",
+  "reply",
+  "respond",
+  "draft",
+  "create",
+  "add",
+  "update",
+  "edit",
+  "delete",
+  "remove",
+  "schedule",
+  "book",
+  "cancel",
+  "archive",
+  "sync",
+  "run",
+  "execute",
+  "trigger",
+  "latest",
+  "recent",
+  "unread",
+  "upcoming",
+  "today",
+  "tomorrow",
+  "yesterday",
 ]);
 
 function tokenize(value) {
@@ -63,7 +133,9 @@ function getDomainMatches(inputTokens) {
 }
 
 function isKnowledgeQuestion(input) {
-  const normalized = String(input || "").trim().toLowerCase();
+  const normalized = String(input || "")
+    .trim()
+    .toLowerCase();
 
   return (
     /^(?:what is|what are|why is|why are|how does|how do|explain|tell me about)\b/.test(
@@ -86,7 +158,9 @@ export function isActionableWorkflowRequest(input) {
     return true;
   }
 
-  return /\b(?:do i have|is there|are there|can you)\b/i.test(String(input || ""));
+  return /\b(?:do i have|is there|are there|can you)\b/i.test(
+    String(input || ""),
+  );
 }
 
 export function scoreWorkflow(workflow, input) {
@@ -216,13 +290,16 @@ export function isNaturalLanguageWorkflow(workflow) {
 
 function getSupportedActions(workflow) {
   const capabilityTokens = new Set(
-    (Array.isArray(workflow?.capabilities) ? workflow.capabilities : []).flatMap(
-      tokenize,
-    ),
+    (Array.isArray(workflow?.capabilities)
+      ? workflow.capabilities
+      : []
+    ).flatMap(tokenize),
   );
 
   return Object.entries(TOKEN_ALIASES)
-    .filter(([, aliases]) => [...aliases].some((alias) => capabilityTokens.has(alias)))
+    .filter(([, aliases]) =>
+      [...aliases].some((alias) => capabilityTokens.has(alias)),
+    )
     .map(([action]) => action);
 }
 
@@ -345,18 +422,26 @@ export function buildWorkflowInstruction(workflow, input, context = {}) {
     "If a matching item exists but a required later value is missing, return INPUT_REQUIRED only then, including the missingFields and all identifiers/context required to resume.",
     "On resume, treat the persisted checkpoint as authoritative and continue from the first incomplete action. Do not repeat completed side effects.",
     "Return a structured JSON-compatible result with status exactly one of COMPLETED, INPUT_REQUIRED, or FAILED.",
-    "For INPUT_REQUIRED include: { status: \"INPUT_REQUIRED\", missingFields: [...], message: \"...\", data: { ...checkpointData } }.",
-    "For COMPLETED include: { status: \"COMPLETED\", message: \"...\", data: { ...resultData } }.",
-    "For FAILED include: { status: \"FAILED\", error: { code: \"...\", message: \"...\" } }.",
+    'For INPUT_REQUIRED include: { status: "INPUT_REQUIRED", missingFields: [...], message: "...", data: { ...checkpointData } }.',
+    'For COMPLETED include: { status: "COMPLETED", message: "...", data: { ...resultData } }.',
+    'For FAILED include: { status: "FAILED", error: { code: "...", message: "..." } }.',
     "Return the workflow result only after the requested operation has actually been completed, a deterministic INPUT_REQUIRED state has been reached after prerequisite actions, or a deterministic FAILED result is available.",
     "Execution plan (authoritative):",
     JSON.stringify(executionPlan),
-  ].filter(Boolean).join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
-export function buildNaturalLanguageWorkflowData(workflow, input, context = {}) {
+export function buildNaturalLanguageWorkflowData(
+  workflow,
+  input,
+  context = {},
+) {
   if (!isNaturalLanguageWorkflow(workflow)) {
-    throw new Error("Workflow does not use the natural-language input contract.");
+    throw new Error(
+      "Workflow does not use the natural-language input contract.",
+    );
   }
 
   const properties = workflow.inputSchema.properties || {};
@@ -370,7 +455,10 @@ export function buildNaturalLanguageWorkflowData(workflow, input, context = {}) 
     input: buildWorkflowInstruction(workflow, originalInput, context),
   };
 
-  if (Object.prototype.hasOwnProperty.call(properties, "worker") && context.workerId) {
+  if (
+    Object.prototype.hasOwnProperty.call(properties, "worker") &&
+    context.workerId
+  ) {
     data.worker = String(context.workerId);
   }
 
@@ -380,4 +468,4 @@ export function buildNaturalLanguageWorkflowData(workflow, input, context = {}) 
 
   return data;
 }
-\nexport { getRequestedActionsInOrder };\n
+export { getRequestedActionsInOrder };

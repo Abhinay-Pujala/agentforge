@@ -25,9 +25,7 @@
 
 function normalizeMissingFields(value) {
   if (Array.isArray(value)) {
-    return value
-      .map((field) => String(field).trim())
-      .filter(Boolean);
+    return value.map((field) => String(field).trim()).filter(Boolean);
   }
 
   if (typeof value === "string" && value.trim()) {
@@ -36,7 +34,7 @@ function normalizeMissingFields(value) {
 
   if (value && typeof value === "object") {
     return Object.entries(value)
-      .filter(([, required]) => Boolean(required))
+      .filter(([, required]) => required === true)
       .map(([field]) => field);
   }
 
@@ -56,9 +54,7 @@ function normalizeStatus(value) {
 
 function getExplicitStatus(result) {
   return normalizeStatus(
-    result?.status ??
-      result?.result?.status ??
-      result?.data?.status,
+    result?.status ?? result?.result?.status ?? result?.data?.status,
   );
 }
 
@@ -103,59 +99,185 @@ export function buildN8nPayload({
   };
 }
 
-export function buildN8nSuccessResponse(result = {}) {
-  const missingFields = normalizeMissingFields(
-    result?.missingFields ?? result?.result?.missingFields,
-  );
-  const explicitStatus = getExplicitStatus(result);
-  const rawInputRequired =
-    typeof result?.raw === "string" &&
-    /^INPUT_REQUIRED\\s*:/i.test(result.raw.trim());
+export function buildN8nSuccessResponse(responseData = {}) {
+  const rawText =
+    typeof responseData?.raw === "string" ? responseData.raw.trim() : "";
 
-  if (explicitStatus === "FAILED" || result?.success === false) {
-    return {
-      success: false,
-      status: "FAILED",
-      error: result.error || result.result?.error || {
-        code: "N8N_WORKFLOW_FAILED",
-        message: "The n8n workflow reported a failure.",
-      },
-      result,
-    };
-  }
+  /*
+   * ---------------------------------------------------------
+   * 1. Plain-text INPUT_REQUIRED
+   * ---------------------------------------------------------
+   */
+  const inputRequiredMatch = rawText.match(/^INPUT_REQUIRED\s*:\s*(.+)$/is);
 
-  if (
-    explicitStatus === "INPUT_REQUIRED" ||
-    missingFields.length > 0 ||
-    rawInputRequired
-  ) {
+  if (inputRequiredMatch) {
     return {
       success: true,
       status: "INPUT_REQUIRED",
-      missingFields,
-      message: getInputRequiredMessage(result),
-      data: result?.data ?? result?.result?.data,
-      result,
+      message: inputRequiredMatch[1].trim(),
     };
   }
 
-  if (explicitStatus === "COMPLETED") {
+  /*
+   * ---------------------------------------------------------
+   * 2. Explicit structured INPUT_REQUIRED
+   * ---------------------------------------------------------
+   */
+  if (responseData?.status === "INPUT_REQUIRED") {
     return {
+      ...responseData,
+      success: responseData.success !== false,
+      status: "INPUT_REQUIRED",
+    };
+  }
+
+  /*
+   * ---------------------------------------------------------
+   * 3. Array-shaped missingFields
+   * ---------------------------------------------------------
+   */
+  if (
+    Array.isArray(responseData?.missingFields) &&
+    responseData.missingFields.length > 0
+  ) {
+    return {
+      ...responseData,
+      success: responseData.success !== false,
+      status: "INPUT_REQUIRED",
+    };
+  }
+
+  /*
+   * ---------------------------------------------------------
+   * 4. Object-shaped missingFields
+   *
+   * Example:
+   *
+   * {
+   *   missingFields: {
+   *     to: "...",
+   *     subject: "..."
+   *   }
+   * }
+   * ---------------------------------------------------------
+   */
+  if (
+    responseData?.missingFields &&
+    typeof responseData.missingFields === "object" &&
+    !Array.isArray(responseData.missingFields)
+  ) {
+    const missingFields = normalizeMissingFields(responseData.missingFields);
+
+    if (missingFields.length > 0) {
+      return {
+        ...responseData,
+        success: responseData.success !== false,
+        status: "INPUT_REQUIRED",
+        missingFields,
+      };
+    }
+  }
+
+  /*
+   * ---------------------------------------------------------
+   * 5. Check nested result for workflow status
+   *
+   * Some n8n responses may wrap the actual workflow response
+   * inside `result`.
+   * ---------------------------------------------------------
+   */
+  const nestedResult =
+    responseData?.result && typeof responseData.result === "object"
+      ? responseData.result
+      : null;
+
+  if (nestedResult) {
+    if (nestedResult.status === "INPUT_REQUIRED") {
+      return {
+        ...responseData,
+        success: responseData.success !== false,
+        status: "INPUT_REQUIRED",
+        missingFields: nestedResult.missingFields,
+        message: nestedResult.message,
+        data: nestedResult.data,
+      };
+    }
+
+    if (
+      Array.isArray(nestedResult.missingFields) &&
+      nestedResult.missingFields.length > 0
+    ) {
+      return {
+        ...responseData,
+        success: responseData.success !== false,
+        status: "INPUT_REQUIRED",
+        missingFields: nestedResult.missingFields,
+        message: nestedResult.message,
+        data: nestedResult.data,
+      };
+    }
+
+    if (
+      nestedResult.missingFields &&
+      typeof nestedResult.missingFields === "object" &&
+      !Array.isArray(nestedResult.missingFields)
+    ) {
+      const missingFields = normalizeMissingFields(nestedResult.missingFields);
+
+      if (missingFields.length > 0) {
+        return {
+          ...responseData,
+          success: responseData.success !== false,
+          status: "INPUT_REQUIRED",
+          missingFields,
+          message: nestedResult.message,
+          data: nestedResult.data,
+        };
+      }
+    }
+  }
+
+  /*
+   * ---------------------------------------------------------
+   * 6. Explicit FAILED response
+   * ---------------------------------------------------------
+   */
+  if (responseData?.status === "FAILED" || responseData?.success === false) {
+    return {
+      ...responseData,
+      success: false,
+      status: "FAILED",
+    };
+  }
+
+  /*
+   * ---------------------------------------------------------
+   * 7. Explicit COMPLETED response
+   * ---------------------------------------------------------
+   */
+  if (responseData?.status === "COMPLETED") {
+    return {
+      ...responseData,
       success: true,
       status: "COMPLETED",
-      message: result?.message ?? result?.result?.message,
-      data: result?.data ?? result?.result?.data,
-      result,
     };
   }
 
+  /*
+   * ---------------------------------------------------------
+   * 8. Legacy successful n8n response
+   *
+   * IMPORTANT:
+   * Preserve the complete response exactly.
+   * Do not flatten or remove nested `result`.
+   * ---------------------------------------------------------
+   */
   return {
     success: true,
     status: "COMPLETED",
-    result,
+    result: responseData,
   };
 }
-
 export function buildN8nErrorResponse(code, message) {
   return {
     success: false,

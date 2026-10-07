@@ -87,6 +87,7 @@ export default function EditWorkflow() {
         name,
         description,
         category,
+        capabilities: formData.capabilities.split(",").map((value) => value.trim().toLowerCase()).filter(Boolean),
         webhook: { provider: "n8n", url: webhookUrl },
         status: formData.status,
         permissions,

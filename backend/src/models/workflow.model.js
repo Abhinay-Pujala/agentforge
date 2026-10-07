@@ -26,6 +26,18 @@ const workflowSchema = new mongoose.Schema(
       trim: true,
       maxlength: 50,
     },
+    // Semantic capabilities make workflow discovery resilient to natural-language
+    // variations such as "email", "Gmail", "inbox", "reply", and "respond".
+    capabilities: {
+      type: [String],
+      default: [],
+      validate: {
+        validator: (values) =>
+          Array.isArray(values) &&
+          values.every((value) => typeof value === "string" && value.trim()),
+        message: "Workflow capabilities must contain non-empty strings.",
+      },
+    },
     webhook: {
       provider: {
         type: String,

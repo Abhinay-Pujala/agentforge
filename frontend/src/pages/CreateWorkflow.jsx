@@ -81,6 +81,7 @@ export default function CreateWorkflow() {
         name,
         description,
         category,
+        capabilities: formData.capabilities.split(",").map((value) => value.trim().toLowerCase()).filter(Boolean),
         webhook: {
           provider: "n8n",
           url: webhookUrl,

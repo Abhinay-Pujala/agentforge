@@ -250,24 +250,41 @@ export function buildWorkflowInstruction(workflow, input) {
   );
 
   const actionText =
-    executableActions.length > 0
-      ? executableActions.join(", ")
+    requestedActions.length > 0
+      ? requestedActions.join(", ")
       : "the actions explicitly described in the original request";
 
+  const unsupportedActions = requestedActions.filter(
+    (action) => !supportedActions.includes(action),
+  );
+
   const conditionalRule = hasConditionalFollowUp(originalRequest)
-    ? "The request contains a conditional or sequential follow-up. Evaluate the condition and continue through every requested follow-up action; do not stop after an intermediate lookup or check."
+    ? [
+        "The request contains a conditional or sequential follow-up.",
+        "Execute prerequisite actions before evaluating whether dependent actions can proceed.",
+        "Do not request input for a dependent action before its prerequisite condition has been evaluated.",
+        "For example, for 'find an email and then reply', search for the matching email first. If none exists, finish with COMPLETED and do not request a reply message. If one exists but reply content is missing, return INPUT_REQUIRED for the reply message and preserve the found email/thread identifiers for resume.",
+        "After receiving INPUT_REQUIRED data on resume, continue the pending dependent action using the preserved execution state; do not repeat completed prerequisite side effects unless necessary to recover state.",
+      ].join(" ")
     : "Complete every action explicitly requested in the original request; do not stop after an intermediate step.";
+
+  const supportNote =
+    unsupportedActions.length > 0
+      ? `The registered workflow does not explicitly advertise these detected actions: ${unsupportedActions.join(", ")}. Preserve them in the execution instruction and follow the workflow's actual capabilities rather than silently dropping them.`
+      : null;
 
   return [
     "Execute the user's request completely using this registered workflow.",
     `Original user request (authoritative): ${originalRequest}`,
-    `Requested workflow actions detected: ${actionText}.`,
+    `Requested workflow actions detected from the user's request: ${actionText}.`,
     conditionalRule,
+    supportNote,
     "Preserve all factual details from the original request, including names, dates, filters, conditions, and requested follow-up actions.",
     "Do not invent recipients, reply content, dates, identifiers, or other user-provided facts.",
-    "If the requested operation requires information that the user did not provide and the workflow cannot safely derive it from the execution context, return INPUT_REQUIRED with the missing fields instead of guessing.",
-    "Return the workflow result only after the requested operation has actually been completed or a deterministic INPUT_REQUIRED/FAILED result is available.",
-  ].join("\n");
+    "A missing value for a later dependent action is not a reason to skip its prerequisite actions.",
+    "When INPUT_REQUIRED is necessary, return the exact missing fields and preserve all data already collected by previous workflow steps.",
+    "Return the workflow result only after the requested operation has actually been completed, a deterministic INPUT_REQUIRED state has been reached after prerequisite actions, or a deterministic FAILED result is available.",
+  ].filter(Boolean).join("\n");
 }
 
 export function buildNaturalLanguageWorkflowData(workflow, input, context = {}) {

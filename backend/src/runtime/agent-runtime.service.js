@@ -518,6 +518,11 @@ class AgentRuntime {
               workflowName: toolResult.workflowName,
               missingFields: toolResult.missingFields || [],
               validationErrors: toolResult.validationErrors || [],
+              message: toolResult.message || null,
+              data:
+                toolResult.data && typeof toolResult.data === "object"
+                  ? toolResult.data
+                  : {},
             };
           }
 
@@ -558,9 +563,18 @@ class AgentRuntime {
           return {
             success: true,
             output:
+              inputRequired.message ||
               "Additional information is required before this action can continue.",
             metadata: {
               inputRequired,
+              workflowPlan:
+                context.workflowPlan ||
+                (workflowSelection.workflow
+                  ? {
+                      version: 2,
+                      workflowId: workflowSelection.workflow.id,
+                    }
+                  : null),
             },
             toolCalls: toolCallRecords,
           };

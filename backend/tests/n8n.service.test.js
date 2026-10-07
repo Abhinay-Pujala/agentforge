@@ -30,6 +30,7 @@ describe("n8n service", () => {
 
     expect(result).toEqual({
       success: true,
+      status: "COMPLETED",
       result: { success: true, result: { message: "Workflow completed" } },
     });
 
@@ -82,6 +83,31 @@ describe("n8n service", () => {
       success: true,
       status: "INPUT_REQUIRED",
       missingFields: ["to", "subject"],
+    });
+  });
+
+
+
+  it("preserves explicit workflow failures returned with HTTP 200", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({
+        success: false,
+        error: {
+          code: "GMAIL_AUTH_REQUIRED",
+          message: "Gmail authorization is required.",
+        },
+      }),
+    }));
+
+    await expect(triggerN8nWorkflow(args)).resolves.toMatchObject({
+      success: false,
+      status: "FAILED",
+      error: {
+        code: "GMAIL_AUTH_REQUIRED",
+        message: "Gmail authorization is required.",
+      },
     });
   });
 

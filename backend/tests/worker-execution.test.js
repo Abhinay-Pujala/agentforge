@@ -155,4 +155,40 @@ describe("Worker Execution Service", () => {
       },
     ]);
   });
+  it("rejects assigned workflows that are missing or disabled", async () => {
+    User.findOne.mockResolvedValue({
+      _id: "user-123",
+    });
+
+    Worker.findOne.mockResolvedValue({
+      _id: "worker-123",
+      status: "enabled",
+      workflowIds: ["workflow-123", "workflow-missing"],
+    });
+
+    Workflow.find.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        lean: vi.fn().mockResolvedValue([
+          {
+            _id: "workflow-123",
+            name: "Available Workflow",
+            description: "Available",
+            category: "productivity",
+            capabilities: [],
+            status: "enabled",
+            permissions: [],
+            inputSchema: {},
+          },
+        ]),
+      }),
+    });
+
+    await expect(
+      getWorkerExecutionContext("firebase-123", "worker-123"),
+    ).rejects.toMatchObject({
+      code: "WORKFLOW_ASSIGNMENT_INVALID",
+      statusCode: 409,
+    });
+  });
+
 });

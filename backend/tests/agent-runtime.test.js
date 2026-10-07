@@ -1303,6 +1303,77 @@ describe("workflow intent reliability", () => {
     );
   });
 
+  it("overrides a model-shortened workflow input with the complete worker instruction", async () => {
+    const n8nTool = createN8nTool();
+    const registry = new ToolRegistry();
+    registry.register(n8nTool);
+
+    const provider = {
+      generate: vi.fn().mockResolvedValue({
+        output: null,
+        toolCalls: [{
+          id: "n8n-short-input",
+          tool: "n8n.trigger",
+          arguments: {
+            workflowId: "workflow-gmail",
+            data: {
+              input: "Check for email from KYP Gamers on today's date",
+            },
+          },
+        }],
+        metadata: {},
+      }),
+    };
+
+    const runtime = new AgentRuntime(provider, registry);
+    const result = await runtime.execute({
+      worker: {
+        model: "test-model",
+        instructions: "Use registered workflows.",
+        enabledTools: [],
+        permissions: [],
+        configuration: {},
+      },
+      input:
+        "Check is there any email I got from KYP Gamers today, if there is then reply to it",
+      context: {
+        workflowCatalog: [{
+          id: "workflow-gmail",
+          name: "Gmail Workflow",
+          description: "Manage Gmail email.",
+          category: "productivity",
+          capabilities: ["email", "gmail", "search", "reply"],
+          inputSchema: {
+            type: "object",
+            properties: {
+              input: { type: "string" },
+            },
+            required: ["input"],
+            additionalProperties: false,
+          },
+        }],
+      },
+    });
+
+    expect(n8nTool.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          input: expect.stringContaining(
+            "Original user request (authoritative): Check is there any email I got from KYP Gamers today, if there is then reply to it",
+          ),
+        }),
+      }),
+      expect.anything(),
+    );
+    expect(n8nTool.execute.mock.calls[0][0].data.input).toContain(
+      "do not stop after an intermediate lookup or check",
+    );
+    expect(n8nTool.execute.mock.calls[0][0].data.input).not.toBe(
+      "Check for email from KYP Gamers on today's date",
+    );
+    expect(result.toolCalls).toHaveLength(1);
+  });
+
   it("fails the execution when an n8n workflow explicitly reports failure", async () => {
     const n8nTool = createN8nTool();
     const registry = new ToolRegistry();

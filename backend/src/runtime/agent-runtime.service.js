@@ -9,13 +9,6 @@ import {
 
 const DEFAULT_MAX_TOOL_ROUNDS = 8;
 
-function tokenize(value) {
-  return String(value || "")
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .filter((token) => token.length > 2);
-}
-
 function isPlaceholderWorkflowValue(value, fieldName = "") {
   if (typeof value !== "string") return false;
 
@@ -75,49 +68,6 @@ function getRequiredWorkflowFields(workflow) {
     : [];
 }
 
-
-function createFallbackWorkflowToolCall(workflow, input, context = {}) {
-  if (!workflow || typeof input !== "string" || !input.trim()) {
-    return null;
-  }
-
-  const properties = workflow?.inputSchema?.properties || {};
-  const inputProperty = properties.input;
-
-  // A natural-language workflow contract can be executed deterministically
-  // without relying on model-native tool calling. This is especially
-  // important for providers/models that expose tools but return plain text
-  // instead of a structured tool call.
-  if (!inputProperty || inputProperty.type !== "string") {
-    return null;
-  }
-
-  const data = {
-    input: input.trim(),
-  };
-
-  // Preserve optional server metadata when the registered schema explicitly
-  // allows it. These values are application context, not model-invented data.
-  if (
-    Object.prototype.hasOwnProperty.call(properties, "worker") &&
-    context.workerId
-  ) {
-    data.worker = String(context.workerId);
-  }
-
-  if (Object.prototype.hasOwnProperty.call(properties, "timestamp")) {
-    data.timestamp = new Date().toISOString();
-  }
-
-  return {
-    id: "runtime-n8n-fallback-1",
-    tool: "n8n.trigger",
-    arguments: {
-      workflowId: workflow.id,
-      data,
-    },
-  };
-}
 
 function createDeterministicWorkflowToolCall(workflow, input, context) {
   if (!isNaturalLanguageWorkflow(workflow)) {

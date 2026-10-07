@@ -39,7 +39,8 @@ export default function EditWorkflow() {
           webhookUrl: workflow.webhook?.url ?? "",
           status: workflow.status ?? "enabled",
           permissions: (workflow.permissions ?? []).join(", "),
-          inputSchema: JSON.stringify(workflow.inputSchema ?? JSON.parse(DEFAULT_INPUT_SCHEMA), null, 2),\n          capabilities: (workflow.capabilities ?? []).join(", "),
+          inputSchema: JSON.stringify(workflow.inputSchema ?? JSON.parse(DEFAULT_INPUT_SCHEMA), null, 2),
+          capabilities: (workflow.capabilities ?? []).join(", "),
         });
       } catch (err) {
         if (mounted) setError(err.response?.data?.message || err.response?.data?.error || err.message || "Failed to load workflow.");

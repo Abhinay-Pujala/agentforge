@@ -40,7 +40,7 @@ export async function getWorkerExecutionContext(firebaseUid, workerId) {
         owner: user._id,
         status: "enabled",
       })
-        .select("_id name description category status permissions inputSchema")
+        .select("_id name description category capabilities status permissions inputSchema")
         .lean()
     : [];
 
@@ -49,6 +49,7 @@ export async function getWorkerExecutionContext(firebaseUid, workerId) {
     name: workflow.name,
     description: workflow.description,
     category: workflow.category,
+    capabilities: workflow.capabilities || [],
     status: workflow.status,
     permissions: workflow.permissions || [],
     inputSchema: workflow.inputSchema || {},

@@ -1189,3 +1189,162 @@ Birthday wishes`,
     expect(n8nTool.execute).toHaveBeenCalledTimes(1);
     expect(modelProvider.generate).toHaveBeenCalledTimes(1);
   });
+
+
+describe("workflow intent reliability", () => {
+  function createN8nTool() {
+    return {
+      name: "n8n.trigger",
+      description: "Trigger a registered n8n workflow.",
+      schema: {
+        type: "object",
+        properties: {
+          workflowId: { type: "string" },
+          data: { type: "object", additionalProperties: true },
+        },
+        required: ["workflowId", "data"],
+      },
+      execute: vi.fn().mockResolvedValue({
+        success: true,
+        status: "COMPLETED",
+        message: "Workflow completed successfully.",
+      }),
+    };
+  }
+
+  it("matches email capability aliases and executes the registered workflow for reply requests", async () => {
+    const n8nTool = createN8nTool();
+    const registry = new ToolRegistry();
+    registry.register(n8nTool);
+
+    const provider = {
+      generate: vi
+        .fn()
+        .mockResolvedValueOnce({
+          output: null,
+          toolCalls: [{
+            id: "email-reply-1",
+            tool: "n8n.trigger",
+            arguments: {
+              workflowId: "workflow-gmail",
+              data: { query: "KYP Gamers", action: "reply" },
+            },
+          }],
+        })
+        .mockResolvedValueOnce({
+          output: "I replied to the email from KYP Gamers.",
+          toolCalls: [],
+          metadata: {},
+        }),
+    };
+
+    const runtime = new AgentRuntime(provider, registry);
+    const result = await runtime.execute({
+      worker: {
+        model: "test-model",
+        instructions: "Use registered workflows.",
+        enabledTools: ["n8n.trigger"],
+        configuration: {},
+      },
+      input: "Check is there any email I got from KYP Gamers, if there is then reply to it",
+      context: {
+        workflowCatalog: [{
+          id: "workflow-gmail",
+          name: "Gmail Agent",
+          description: "Manage messages in Gmail.",
+          category: "gmail",
+          capabilities: ["email", "inbox", "search", "reply", "respond"],
+          inputSchema: { type: "object", properties: {}, required: [] },
+        }],
+      },
+    });
+
+    expect(n8nTool.execute).toHaveBeenCalledTimes(1);
+    expect(result.output).toContain("replied");
+  });
+
+  it("does not trigger an unrelated workflow just because the worker has one workflow", async () => {
+    const n8nTool = createN8nTool();
+    const registry = new ToolRegistry();
+    registry.register(n8nTool);
+
+    const provider = {
+      generate: vi.fn().mockResolvedValue({
+        output: "Here is an explanation.",
+        toolCalls: [],
+        metadata: {},
+      }),
+    };
+
+    const runtime = new AgentRuntime(provider, registry);
+    await runtime.execute({
+      worker: {
+        model: "test-model",
+        instructions: "Be helpful.",
+        enabledTools: ["n8n.trigger"],
+        configuration: {},
+      },
+      input: "Create a JavaScript function that reverses a string.",
+      context: {
+        workflowCatalog: [{
+          id: "workflow-gmail",
+          name: "Gmail Agent",
+          description: "Manage messages in Gmail.",
+          category: "gmail",
+          capabilities: ["email", "inbox", "search", "reply"],
+          inputSchema: { type: "object", properties: {}, required: [] },
+        }],
+      },
+    });
+
+    expect(n8nTool.execute).not.toHaveBeenCalled();
+    expect(provider.generate).toHaveBeenCalledWith(
+      expect.objectContaining({ tools: [] }),
+    );
+  });
+
+  it("returns workflow inputRequired instead of completing silently when the model omits the required workflow call", async () => {
+    const n8nTool = createN8nTool();
+    const registry = new ToolRegistry();
+    registry.register(n8nTool);
+
+    const provider = {
+      generate: vi.fn().mockResolvedValue({
+        output: "I will check your email.",
+        toolCalls: [],
+        metadata: {},
+      }),
+    };
+
+    const runtime = new AgentRuntime(provider, registry);
+    const result = await runtime.execute({
+      worker: {
+        model: "test-model",
+        instructions: "Use registered workflows.",
+        enabledTools: ["n8n.trigger"],
+        configuration: {},
+      },
+      input: "Check my email from KYP Gamers and reply to it.",
+      context: {
+        workflowCatalog: [{
+          id: "workflow-gmail",
+          name: "Gmail Agent",
+          description: "Manage messages in Gmail.",
+          category: "gmail",
+          capabilities: ["email", "inbox", "search", "reply"],
+          inputSchema: {
+            type: "object",
+            properties: {},
+            required: [],
+          },
+        }],
+      },
+    });
+
+    expect(result.metadata.inputRequired).toMatchObject({
+      workflowId: "workflow-gmail",
+      reason: "WORKFLOW_TOOL_NOT_CALLED",
+    });
+    expect(n8nTool.execute).not.toHaveBeenCalled();
+  });
+});

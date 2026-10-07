@@ -11,7 +11,9 @@ vi.mock("../src/services/execution.service.js", () => ({
   updateExecutionStatus: updateExecutionStatusMock,
 }));
 vi.mock("../src/runtime/worker-flow/worker-execution-engine.js", () => ({
-  default: vi.fn().mockImplementation(() => ({ execute: executeMock })),
+  default: class MockWorkerExecutionEngine {
+    execute(...args) { return executeMock(...args); }
+  },
 }));
 vi.mock("../src/runtime/execution-policy.js", () => ({
   validateExecutionPolicy: vi.fn(() => ({ provider: "openrouter", timeoutMs: 30000, maxTokens: 2000, maxCost: 0.05 })),

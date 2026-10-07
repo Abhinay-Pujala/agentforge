@@ -495,6 +495,21 @@ class AgentRuntime {
                 });
           }
 
+          if (
+            toolCall.tool === "n8n.trigger" &&
+            toolResult?.success === false
+          ) {
+            const workflowError = new Error(
+              toolResult?.error?.message ||
+                "The n8n workflow reported a failure.",
+            );
+            workflowError.code =
+              toolResult?.error?.code || "N8N_WORKFLOW_FAILED";
+            workflowError.category = "WORKFLOW_ERROR";
+            workflowError.retryable = false;
+            throw workflowError;
+          }
+
           record.result = toolResult;
           record.status =
             toolResult?.status === "INPUT_REQUIRED"

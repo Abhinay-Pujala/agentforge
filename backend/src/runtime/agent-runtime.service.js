@@ -5,6 +5,7 @@ import {
   buildNaturalLanguageWorkflowData,
   selectWorkflow,
   isNaturalLanguageWorkflow,
+  buildWorkflowInstruction,
 } from "./workflow-router.js";
 
 const DEFAULT_MAX_TOOL_ROUNDS = 8;
@@ -348,13 +349,39 @@ class AgentRuntime {
           // never in tool arguments. Strip any accidental extra top-level
           // fields before the generic tool-schema validator runs.
           if (toolCall.tool === "n8n.trigger") {
+            const assignedWorkflow =
+              workflowSelection.workflow ||
+              context.workflowCatalog?.find(
+                (workflow) =>
+                  workflow.id === toolCall.arguments?.workflowId,
+              ) ||
+              (context.workflowCatalog?.length === 1
+                ? context.workflowCatalog[0]
+                : null);
+
+            const normalizedData =
+              toolCall.arguments?.data &&
+              typeof toolCall.arguments.data === "object"
+                ? toolCall.arguments.data
+                : {};
+
+            // Natural-language workflows receive a complete, deterministic
+            // execution instruction built from the authoritative user input.
+            // Never allow the model to shorten a compound request before it
+            // reaches n8n.
+            if (
+              assignedWorkflow &&
+              isNaturalLanguageWorkflow(assignedWorkflow)
+            ) {
+              normalizedData.input = buildWorkflowInstruction(
+                assignedWorkflow,
+                input,
+              );
+            }
+
             toolCall.arguments = {
               workflowId: toolCall.arguments?.workflowId,
-              data:
-                toolCall.arguments?.data &&
-                typeof toolCall.arguments.data === "object"
-                  ? toolCall.arguments.data
-                  : {},
+              data: normalizedData,
             };
           }
 

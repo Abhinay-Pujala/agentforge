@@ -580,8 +580,7 @@ describe("AgentRuntime tool capabilities", () => {
         enabledTools: ["n8n.trigger"],
         configuration: {},
       },
-      input:
-        "Send a message and draft an email about GATE 2027.",
+      input: "Send a message and draft an email about GATE 2027.",
       context: {
         workflowCatalog: [
           {
@@ -627,72 +626,573 @@ describe("AgentRuntime tool capabilities", () => {
     expect(result.toolCalls).toHaveLength(2);
     expect(modelProvider.generate).toHaveBeenCalledTimes(2);
   });
-
 });
 
+it("does not expose n8n to ordinary conversation", async () => {
+  const n8nTool = {
+    name: "n8n.trigger",
+    description: "Trigger a registered workflow.",
+    schema: {
+      type: "object",
+      properties: {
+        workflowId: { type: "string" },
+        data: { type: "object" },
+      },
+      required: ["workflowId", "data"],
+    },
+    execute: vi.fn(),
+  };
 
-  it("does not expose n8n to ordinary conversation", async () => {
-    const n8nTool = {
-      name: "n8n.trigger",
-      description: "Trigger a registered workflow.",
-      schema: {
-        type: "object",
-        properties: {
-          workflowId: { type: "string" },
-          data: { type: "object" },
+  const registry = new ToolRegistry();
+  registry.register(n8nTool);
+
+  const modelProvider = {
+    generate: vi.fn().mockResolvedValue({
+      output: "Hi! I can help you.",
+      toolCalls: [],
+      metadata: {},
+    }),
+  };
+
+  const runtime = new AgentRuntime(modelProvider, registry);
+
+  const result = await runtime.execute({
+    worker: {
+      model: "test-model",
+      instructions: "Be helpful.",
+      enabledTools: ["n8n.trigger"],
+      permissions: ["n8n.trigger"],
+      workflowIds: ["workflow-email"],
+      configuration: {},
+    },
+    input: "Hi, what can you do?",
+    context: {
+      workflowCatalog: [
+        {
+          id: "workflow-email",
+          name: "Email Automation",
+          description: "Send an email.",
+          category: "email",
+          inputSchema: {
+            type: "object",
+            properties: {},
+            required: [],
+          },
         },
-        required: ["workflowId", "data"],
+      ],
+    },
+  });
+
+  expect(result.output).toBe("Hi! I can help you.");
+  expect(n8nTool.execute).not.toHaveBeenCalled();
+  expect(n8nTool.execute).not.toHaveBeenCalled();
+});
+
+it("triggers a single registered calendar workflow for a natural-language request", async () => {
+  const n8nTool = {
+    name: "n8n.trigger",
+    description: "Trigger a registered n8n workflow.",
+    schema: {
+      type: "object",
+      properties: {
+        workflowId: { type: "string" },
+        data: { type: "object", additionalProperties: true },
       },
-      execute: vi.fn(),
-    };
-
-    const registry = new ToolRegistry();
-    registry.register(n8nTool);
-
-    const modelProvider = {
-      generate: vi.fn().mockResolvedValue({
-        output: "Hi! I can help you.",
-        toolCalls: [],
-        metadata: {},
-      }),
-    };
-
-    const runtime = new AgentRuntime(modelProvider, registry);
-
-    const result = await runtime.execute({
-      worker: {
-        model: "test-model",
-        instructions: "Be helpful.",
-        enabledTools: ["n8n.trigger"],
-        permissions: ["n8n.trigger"],
-        workflowIds: ["workflow-email"],
-        configuration: {},
+      required: ["workflowId", "data"],
+    },
+    execute: vi.fn().mockResolvedValue({
+      success: true,
+      status: "COMPLETED",
+      result: {
+        events: [{ title: "AI Meeting", start: "2026-10-06T12:00:00+05:30" }],
       },
-      input: "Hi, what can you do?",
-      context: {
-        workflowCatalog: [
+    }),
+  };
+
+  const toolRegistry = new ToolRegistry();
+  toolRegistry.register(n8nTool);
+
+  const modelProvider = {
+    generate: vi
+      .fn()
+      .mockResolvedValueOnce({
+        output: null,
+        toolCalls: [
           {
-            id: "workflow-email",
-            name: "Email Automation",
-            description: "Send an email.",
-            category: "email",
-            inputSchema: {
-              type: "object",
-              properties: {},
-              required: [],
+            id: "n8n-calendar-1",
+            tool: "n8n.trigger",
+            arguments: {
+              workflowId: "workflow-calendar",
+              data: {},
             },
           },
         ],
-      },
-    });
+      })
+      .mockResolvedValueOnce({
+        output: "You have an AI Meeting tomorrow from 12:00 PM to 1:00 PM.",
+        toolCalls: [],
+        metadata: {},
+      }),
+  };
 
-    expect(result.output).toBe("Hi! I can help you.");
-    expect(n8nTool.execute).not.toHaveBeenCalled();
-    expect(n8nTool.execute).not.toHaveBeenCalled();
+  const runtime = new AgentRuntime(modelProvider, toolRegistry);
+
+  const result = await runtime.execute({
+    worker: {
+      model: "test-model",
+      instructions: "Use the calendar workflow when appropriate.",
+      enabledTools: ["n8n.trigger"],
+      permissions: ["n8n.trigger"],
+      configuration: {},
+    },
+    input: "What do I have on my calendar tomorrow?",
+    context: {
+      workflowCatalog: [
+        {
+          id: "workflow-calendar",
+          name: "Google Calendar Agent",
+          description: "View, create, update, and delete calendar events.",
+          category: "calendar",
+          inputSchema: {
+            type: "object",
+            properties: {},
+            required: [],
+          },
+        },
+      ],
+    },
   });
 
-  it("triggers a single registered calendar workflow for a natural-language request", async () => {
-    const n8nTool = {
+  expect(result.output).toContain("AI Meeting");
+  expect(n8nTool.execute).toHaveBeenCalledTimes(1);
+  expect(modelProvider.generate).toHaveBeenCalledTimes(2);
+});
+
+it("does not trigger a workflow for a calendar knowledge question", async () => {
+  const n8nTool = {
+    name: "n8n.trigger",
+    description: "Trigger a registered n8n workflow.",
+    schema: {
+      type: "object",
+      properties: {
+        workflowId: { type: "string" },
+        data: { type: "object", additionalProperties: true },
+      },
+      required: ["workflowId", "data"],
+    },
+    execute: vi.fn(),
+  };
+
+  const toolRegistry = new ToolRegistry();
+  toolRegistry.register(n8nTool);
+
+  const modelProvider = {
+    generate: vi.fn().mockResolvedValue({
+      output: "A calendar is a system for organizing dates and events.",
+      toolCalls: [],
+      metadata: {},
+    }),
+  };
+
+  const runtime = new AgentRuntime(modelProvider, toolRegistry);
+
+  await runtime.execute({
+    worker: {
+      model: "test-model",
+      instructions: "Be helpful.",
+      enabledTools: ["n8n.trigger"],
+      permissions: ["n8n.trigger"],
+      configuration: {},
+    },
+    input: "What is a calendar?",
+    context: {
+      workflowCatalog: [
+        {
+          id: "workflow-calendar",
+          name: "Google Calendar Agent",
+          description: "View, create, update, and delete calendar events.",
+          category: "calendar",
+          inputSchema: { type: "object", properties: {}, required: [] },
+        },
+      ],
+    },
+  });
+
+  expect(n8nTool.execute).not.toHaveBeenCalled();
+  expect(modelProvider.generate).toHaveBeenCalledWith(
+    expect.objectContaining({ tools: [] }),
+  );
+});
+
+it("executes the single registered workflow once and accepts a polished email body", async () => {
+  const n8nTool = {
+    name: "n8n.trigger",
+    description: "Trigger a registered n8n workflow.",
+    schema: {
+      type: "object",
+      properties: {
+        workflowId: { type: "string" },
+        data: { type: "object", additionalProperties: true },
+      },
+      required: ["workflowId", "data"],
+      additionalProperties: false,
+    },
+    execute: vi.fn().mockResolvedValue({
+      success: true,
+      status: "SENT",
+      message: "Email sent successfully",
+    }),
+  };
+
+  const toolRegistry = new ToolRegistry();
+  toolRegistry.register(n8nTool);
+
+  const modelProvider = {
+    generate: vi
+      .fn()
+      .mockResolvedValueOnce({
+        output: null,
+        toolCalls: [
+          {
+            id: "n8n-call-1",
+            tool: "n8n.trigger",
+            arguments: {
+              workflowId: "workflow-email",
+              data: {
+                to: "abhinay200711@gmail.com",
+                subject: "Project Submission Update",
+                message:
+                  "Hi, I’ll submit the project tomorrow. Best regards, Abhinay.",
+              },
+            },
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        output: "Email sent successfully.",
+        toolCalls: [],
+        metadata: {},
+      }),
+  };
+
+  const runtime = new AgentRuntime(modelProvider, toolRegistry);
+
+  const result = await runtime.execute({
+    worker: {
+      model: "test-model",
+      instructions: "Use the email workflow when appropriate.",
+      enabledTools: ["n8n.trigger"],
+      configuration: {},
+    },
+    input:
+      "Send an email to abhinay200711@gmail.com saying I'll submit the project tomorrow.",
+    context: {
+      workflowCatalog: [
+        {
+          id: "workflow-email",
+          name: "Email Automation",
+          description: "Send an email.",
+          category: "automation",
+          inputSchema: {
+            type: "object",
+            properties: {
+              to: { type: "string" },
+              subject: { type: "string" },
+              message: { type: "string" },
+            },
+            required: ["to", "subject", "message"],
+            additionalProperties: false,
+          },
+        },
+      ],
+    },
+  });
+
+  expect(result.output).toBe("Email sent successfully.");
+  expect(result.metadata.inputRequired).toBeUndefined();
+  expect(result.toolCalls).toHaveLength(1);
+  expect(n8nTool.execute).toHaveBeenCalledTimes(1);
+  expect(modelProvider.generate).toHaveBeenCalledTimes(2);
+});
+
+it("merges pending workflow state and resumed input before execution", async () => {
+  const n8nTool = {
+    name: "n8n.trigger",
+    description: "Trigger a registered n8n workflow.",
+    schema: {
+      type: "object",
+      properties: {
+        workflowId: { type: "string" },
+        data: { type: "object", additionalProperties: true },
+      },
+      required: ["workflowId", "data"],
+      additionalProperties: false,
+    },
+    execute: vi.fn().mockResolvedValue({
+      success: true,
+      status: "SENT",
+      message: "Workflow completed successfully",
+    }),
+  };
+
+  const registry = new ToolRegistry();
+  registry.register(n8nTool);
+
+  const modelProvider = {
+    generate: vi
+      .fn()
+      .mockResolvedValueOnce({
+        output: null,
+        toolCalls: [
+          {
+            id: "resume-call-1",
+            tool: "n8n.trigger",
+            arguments: {
+              workflowId: "workflow-email",
+              data: {},
+            },
+          },
+        ],
+        metadata: {},
+      })
+      .mockResolvedValueOnce({
+        output: "Workflow completed successfully.",
+        toolCalls: [],
+        metadata: {},
+      }),
+  };
+
+  const runtime = new AgentRuntime(modelProvider, registry);
+
+  const result = await runtime.execute({
+    worker: {
+      model: "test-model",
+      instructions: "Use the registered workflow.",
+      enabledTools: ["n8n.trigger"],
+      permissions: ["n8n.trigger"],
+      workflowIds: ["workflow-email"],
+      configuration: {},
+    },
+    input: "Original request: Send an email to user@example.com",
+    context: {
+      workflowCatalog: [
+        {
+          id: "workflow-email",
+          name: "Email Automation",
+          description: "Send an email.",
+          category: "automation",
+          inputSchema: {
+            type: "object",
+            properties: {
+              to: { type: "string" },
+              message: { type: "string" },
+            },
+            required: ["to", "message"],
+          },
+        },
+      ],
+      pendingWorkflowData: {
+        to: "user@example.com",
+      },
+      explicitWorkflowInput: {
+        message: "Hello from the user",
+      },
+      resumedFromExecutionId: "execution-123",
+      originalUserInput:
+        "Send an email to user@example.com\nHello from the user",
+    },
+  });
+
+  expect(result.success).toBe(true);
+  expect(n8nTool.execute).toHaveBeenCalledWith(
+    {
+      workflowId: "workflow-email",
+      data: {
+        to: "user@example.com",
+        message: "Hello from the user",
+      },
+    },
+    expect.any(Object),
+  );
+});
+
+it("pauses immediately when the single workflow has missing required input", async () => {
+  const n8nTool = {
+    name: "n8n.trigger",
+    description: "Trigger a registered n8n workflow.",
+    schema: {
+      type: "object",
+      properties: {
+        workflowId: { type: "string" },
+        data: { type: "object", additionalProperties: true },
+      },
+      required: ["workflowId", "data"],
+      additionalProperties: false,
+    },
+    execute: vi.fn().mockResolvedValue({
+      status: "INPUT_REQUIRED",
+      workflowId: "workflow-email",
+      workflowName: "Email Automation",
+      missingFields: ["message"],
+      validationErrors: ["arguments.message is required"],
+      message:
+        "Additional workflow input is required before this workflow can run.",
+    }),
+  };
+
+  const toolRegistry = new ToolRegistry();
+  toolRegistry.register(n8nTool);
+
+  const modelProvider = {
+    generate: vi.fn().mockResolvedValue({
+      output: null,
+      toolCalls: [
+        {
+          id: "n8n-call-1",
+          tool: "n8n.trigger",
+          arguments: {
+            workflowId: "workflow-email",
+            data: {
+              to: "abhinay200711@gmail.com",
+              subject: "Project Update",
+            },
+          },
+        },
+      ],
+    }),
+  };
+
+  const runtime = new AgentRuntime(modelProvider, toolRegistry);
+
+  const result = await runtime.execute({
+    worker: {
+      model: "test-model",
+      instructions: "Use the email workflow when appropriate.",
+      enabledTools: ["n8n.trigger"],
+      configuration: {},
+    },
+    input: "Send an email to abhinay200711@gmail.com",
+    context: {
+      workflowCatalog: [
+        {
+          id: "workflow-email",
+          name: "Email Automation",
+          description: "Send an email.",
+          category: "automation",
+          inputSchema: {
+            type: "object",
+            properties: {
+              to: { type: "string" },
+              subject: { type: "string" },
+              message: { type: "string" },
+            },
+            required: ["to", "subject", "message"],
+            additionalProperties: false,
+          },
+        },
+      ],
+    },
+  });
+
+  expect(result.metadata.inputRequired).toMatchObject({
+    workflowId: "workflow-email",
+    missingFields: ["message"],
+    validationErrors: ["arguments.message is required"],
+  });
+  expect(result.toolCalls).toHaveLength(1);
+  expect(modelProvider.generate).toHaveBeenCalledTimes(1);
+  expect(n8nTool.execute).toHaveBeenCalledTimes(1);
+});
+it("does not retry indefinitely when resumed input remains unresolved", async () => {
+  const n8nTool = {
+    name: "n8n.trigger",
+    description: "Trigger a registered workflow.",
+    schema: {
+      type: "object",
+      properties: {
+        workflowId: { type: "string" },
+        data: { type: "object", additionalProperties: true },
+      },
+      required: ["workflowId", "data"],
+    },
+    execute: vi.fn().mockResolvedValue({
+      status: "INPUT_REQUIRED",
+      workflowId: "workflow-email",
+      workflowName: "Email Automation",
+      missingFields: ["message"],
+      validationErrors: ["arguments.message is required"],
+    }),
+  };
+
+  const registry = new ToolRegistry();
+  registry.register(n8nTool);
+
+  const modelProvider = {
+    generate: vi.fn().mockResolvedValue({
+      output: null,
+      toolCalls: [
+        {
+          id: "resume-call-1",
+          tool: "n8n.trigger",
+          arguments: {
+            workflowId: "workflow-email",
+            data: { to: "user@example.com" },
+          },
+        },
+      ],
+    }),
+  };
+
+  const runtime = new AgentRuntime(modelProvider, registry);
+
+  const result = await runtime.execute({
+    worker: {
+      model: "test-model",
+      instructions: "Send email using the registered workflow.",
+      enabledTools: ["n8n.trigger"],
+      permissions: ["n8n.trigger"],
+      workflowIds: ["workflow-email"],
+      configuration: {},
+    },
+    input: `Original request:
+Send an email to user@example.com
+
+User provided additional information:
+Birthday wishes`,
+    context: {
+      workflowCatalog: [
+        {
+          id: "workflow-email",
+          name: "Email Automation",
+          inputSchema: {
+            type: "object",
+            properties: {
+              to: { type: "string" },
+              message: { type: "string" },
+            },
+            required: ["to", "message"],
+          },
+        },
+      ],
+      explicitWorkflowInput: { message: "Birthday wishes" },
+      pendingWorkflowData: { to: "user@example.com" },
+      resumedFromExecutionId: "execution-123",
+      originalUserInput: `Send an email to user@example.com
+Birthday wishes`,
+    },
+  });
+
+  expect(result.success).toBe(true);
+  expect(result.metadata.inputRequired).toMatchObject({
+    missingFields: ["message"],
+  });
+  expect(n8nTool.execute).toHaveBeenCalledTimes(1);
+  expect(modelProvider.generate).toHaveBeenCalledTimes(1);
+});
+
+describe("workflow intent reliability", () => {
+  function createN8nTool() {
+    return {
       name: "n8n.trigger",
       description: "Trigger a registered n8n workflow.",
       schema: {
@@ -706,117 +1206,97 @@ describe("AgentRuntime tool capabilities", () => {
       execute: vi.fn().mockResolvedValue({
         success: true,
         status: "COMPLETED",
-        result: {
-          events: [
-            { title: "AI Meeting", start: "2026-10-06T12:00:00+05:30" },
-          ],
-        },
+        message: "Workflow completed successfully.",
       }),
     };
+  }
 
-    const toolRegistry = new ToolRegistry();
-    toolRegistry.register(n8nTool);
+  it("matches email capability aliases and executes the registered workflow for reply requests", async () => {
+    const n8nTool = createN8nTool();
+    const registry = new ToolRegistry();
+    registry.register(n8nTool);
 
-    const modelProvider = {
+    const provider = {
       generate: vi
         .fn()
         .mockResolvedValueOnce({
           output: null,
           toolCalls: [
             {
-              id: "n8n-calendar-1",
+              id: "email-reply-1",
               tool: "n8n.trigger",
               arguments: {
-                workflowId: "workflow-calendar",
-                data: {},
+                workflowId: "workflow-gmail",
+                data: { query: "KYP Gamers", action: "reply" },
               },
             },
           ],
         })
         .mockResolvedValueOnce({
-          output: "You have an AI Meeting tomorrow from 12:00 PM to 1:00 PM.",
+          output: "I replied to the email from KYP Gamers.",
           toolCalls: [],
           metadata: {},
         }),
     };
 
-    const runtime = new AgentRuntime(modelProvider, toolRegistry);
-
+    const runtime = new AgentRuntime(provider, registry);
     const result = await runtime.execute({
       worker: {
         model: "test-model",
-        instructions: "Use the calendar workflow when appropriate.",
+        instructions: "Use registered workflows.",
         enabledTools: ["n8n.trigger"],
-        permissions: ["n8n.trigger"],
         configuration: {},
       },
-      input: "What do I have on my calendar tomorrow?",
+      input:
+        "Check is there any email I got from KYP Gamers, if there is then reply to it",
       context: {
         workflowCatalog: [
           {
-            id: "workflow-calendar",
-            name: "Google Calendar Agent",
-            description: "View, create, update, and delete calendar events.",
-            category: "calendar",
-            inputSchema: {
-              type: "object",
-              properties: {},
-              required: [],
-            },
+            id: "workflow-gmail",
+            name: "Gmail Agent",
+            description: "Manage messages in Gmail.",
+            category: "gmail",
+            capabilities: ["email", "inbox", "search", "reply", "respond"],
+            inputSchema: { type: "object", properties: {}, required: [] },
           },
         ],
       },
     });
 
-    expect(result.output).toContain("AI Meeting");
     expect(n8nTool.execute).toHaveBeenCalledTimes(1);
-    expect(modelProvider.generate).toHaveBeenCalledTimes(2);
+    expect(result.output).toContain("replied");
   });
 
-  it("does not trigger a workflow for a calendar knowledge question", async () => {
-    const n8nTool = {
-      name: "n8n.trigger",
-      description: "Trigger a registered n8n workflow.",
-      schema: {
-        type: "object",
-        properties: {
-          workflowId: { type: "string" },
-          data: { type: "object", additionalProperties: true },
-        },
-        required: ["workflowId", "data"],
-      },
-      execute: vi.fn(),
-    };
+  it("does not trigger an unrelated workflow just because the worker has one workflow", async () => {
+    const n8nTool = createN8nTool();
+    const registry = new ToolRegistry();
+    registry.register(n8nTool);
 
-    const toolRegistry = new ToolRegistry();
-    toolRegistry.register(n8nTool);
-
-    const modelProvider = {
+    const provider = {
       generate: vi.fn().mockResolvedValue({
-        output: "A calendar is a system for organizing dates and events.",
+        output: "Here is an explanation.",
         toolCalls: [],
         metadata: {},
       }),
     };
 
-    const runtime = new AgentRuntime(modelProvider, toolRegistry);
-
+    const runtime = new AgentRuntime(provider, registry);
     await runtime.execute({
       worker: {
         model: "test-model",
         instructions: "Be helpful.",
         enabledTools: ["n8n.trigger"],
-        permissions: ["n8n.trigger"],
         configuration: {},
       },
-      input: "What is a calendar?",
+      input: "Create a JavaScript function that reverses a string.",
       context: {
         workflowCatalog: [
           {
-            id: "workflow-calendar",
-            name: "Google Calendar Agent",
-            description: "View, create, update, and delete calendar events.",
-            category: "calendar",
+            id: "workflow-gmail",
+            name: "Gmail Agent",
+            description: "Manage messages in Gmail.",
+            category: "gmail",
+            capabilities: ["email", "inbox", "search", "reply"],
             inputSchema: { type: "object", properties: {}, required: [] },
           },
         ],
@@ -824,273 +1304,60 @@ describe("AgentRuntime tool capabilities", () => {
     });
 
     expect(n8nTool.execute).not.toHaveBeenCalled();
-    expect(modelProvider.generate).toHaveBeenCalledWith(
+    expect(provider.generate).toHaveBeenCalledWith(
       expect.objectContaining({ tools: [] }),
     );
   });
 
-  it("executes the single registered workflow once and accepts a polished email body", async () => {
-    const n8nTool = {
-      name: "n8n.trigger",
-      description: "Trigger a registered n8n workflow.",
-      schema: {
-        type: "object",
-        properties: {
-          workflowId: { type: "string" },
-          data: { type: "object", additionalProperties: true },
-        },
-        required: ["workflowId", "data"],
-        additionalProperties: false,
-      },
-      execute: vi.fn().mockResolvedValue({
-        success: true,
-        status: "SENT",
-        message: "Email sent successfully",
-      }),
-    };
-
-    const toolRegistry = new ToolRegistry();
-    toolRegistry.register(n8nTool);
-
-    const modelProvider = {
-      generate: vi
-        .fn()
-        .mockResolvedValueOnce({
-          output: null,
-          toolCalls: [
-            {
-              id: "n8n-call-1",
-              tool: "n8n.trigger",
-              arguments: {
-                workflowId: "workflow-email",
-                data: {
-                  to: "abhinay200711@gmail.com",
-                  subject: "Project Submission Update",
-                  message:
-                    "Hi, I’ll submit the project tomorrow. Best regards, Abhinay.",
-                },
-              },
-            },
-          ],
-        })
-        .mockResolvedValueOnce({
-          output: "Email sent successfully.",
-          toolCalls: [],
-          metadata: {},
-        }),
-    };
-
-    const runtime = new AgentRuntime(modelProvider, toolRegistry);
-
-    const result = await runtime.execute({
-      worker: {
-        model: "test-model",
-        instructions: "Use the email workflow when appropriate.",
-        enabledTools: ["n8n.trigger"],
-        configuration: {},
-      },
-      input:
-        "Send an email to abhinay200711@gmail.com saying I'll submit the project tomorrow.",
-      context: {
-        workflowCatalog: [
-          {
-            id: "workflow-email",
-            name: "Email Automation",
-            description: "Send an email.",
-            category: "automation",
-            inputSchema: {
-              type: "object",
-              properties: {
-                to: { type: "string" },
-                subject: { type: "string" },
-                message: { type: "string" },
-              },
-              required: ["to", "subject", "message"],
-              additionalProperties: false,
-            },
-          },
-        ],
-      },
-    });
-
-    expect(result.output).toBe("Email sent successfully.");
-    expect(result.metadata.inputRequired).toBeUndefined();
-    expect(result.toolCalls).toHaveLength(1);
-    expect(n8nTool.execute).toHaveBeenCalledTimes(1);
-    expect(modelProvider.generate).toHaveBeenCalledTimes(2);
-  });
-
-  it("merges pending workflow state and resumed input before execution", async () => {
-    const n8nTool = {
-      name: "n8n.trigger",
-      description: "Trigger a registered n8n workflow.",
-      schema: {
-        type: "object",
-        properties: {
-          workflowId: { type: "string" },
-          data: { type: "object", additionalProperties: true },
-        },
-        required: ["workflowId", "data"],
-        additionalProperties: false,
-      },
-      execute: vi.fn().mockResolvedValue({
-        success: true,
-        status: "SENT",
-        message: "Workflow completed successfully",
-      }),
-    };
-
+  it("overrides a model-shortened workflow input with the complete worker instruction", async () => {
+    const n8nTool = createN8nTool();
     const registry = new ToolRegistry();
     registry.register(n8nTool);
 
-    const modelProvider = {
-      generate: vi
-        .fn()
-        .mockResolvedValueOnce({
-          output: null,
-          toolCalls: [
-            {
-              id: "resume-call-1",
-              tool: "n8n.trigger",
-              arguments: {
-                workflowId: "workflow-email",
-                data: {},
-              },
-            },
-          ],
-          metadata: {},
-        })
-        .mockResolvedValueOnce({
-          output: "Workflow completed successfully.",
-          toolCalls: [],
-          metadata: {},
-        }),
-    };
-
-    const runtime = new AgentRuntime(modelProvider, registry);
-
-    const result = await runtime.execute({
-      worker: {
-        model: "test-model",
-        instructions: "Use the registered workflow.",
-        enabledTools: ["n8n.trigger"],
-        permissions: ["n8n.trigger"],
-        workflowIds: ["workflow-email"],
-        configuration: {},
-      },
-      input: "Original request: Send an email to user@example.com",
-      context: {
-        workflowCatalog: [
-          {
-            id: "workflow-email",
-            name: "Email Automation",
-            description: "Send an email.",
-            category: "automation",
-            inputSchema: {
-              type: "object",
-              properties: {
-                to: { type: "string" },
-                message: { type: "string" },
-              },
-              required: ["to", "message"],
-            },
-          },
-        ],
-        pendingWorkflowData: {
-          to: "user@example.com",
-        },
-        explicitWorkflowInput: {
-          message: "Hello from the user",
-        },
-        resumedFromExecutionId: "execution-123",
-        originalUserInput:
-          "Send an email to user@example.com\nHello from the user",
-      },
-    });
-
-    expect(result.success).toBe(true);
-    expect(n8nTool.execute).toHaveBeenCalledWith(
-      {
-        workflowId: "workflow-email",
-        data: {
-          to: "user@example.com",
-          message: "Hello from the user",
-        },
-      },
-      expect.any(Object),
-    );
-  });
-
-  it("pauses immediately when the single workflow has missing required input", async () => {
-    const n8nTool = {
-      name: "n8n.trigger",
-      description: "Trigger a registered n8n workflow.",
-      schema: {
-        type: "object",
-        properties: {
-          workflowId: { type: "string" },
-          data: { type: "object", additionalProperties: true },
-        },
-        required: ["workflowId", "data"],
-        additionalProperties: false,
-      },
-      execute: vi.fn().mockResolvedValue({
-        status: "INPUT_REQUIRED",
-        workflowId: "workflow-email",
-        workflowName: "Email Automation",
-        missingFields: ["message"],
-        validationErrors: ["arguments.message is required"],
-        message: "Additional workflow input is required before this workflow can run.",
-      }),
-    };
-
-    const toolRegistry = new ToolRegistry();
-    toolRegistry.register(n8nTool);
-
-    const modelProvider = {
+    const provider = {
       generate: vi.fn().mockResolvedValue({
         output: null,
         toolCalls: [
           {
-            id: "n8n-call-1",
+            id: "n8n-short-input",
             tool: "n8n.trigger",
             arguments: {
-              workflowId: "workflow-email",
+              workflowId: "workflow-gmail",
               data: {
-                to: "abhinay200711@gmail.com",
-                subject: "Project Update",
+                input: "Check for email from KYP Gamers on today's date",
               },
             },
           },
         ],
+        metadata: {},
       }),
     };
 
-    const runtime = new AgentRuntime(modelProvider, toolRegistry);
-
+    const runtime = new AgentRuntime(provider, registry);
     const result = await runtime.execute({
       worker: {
         model: "test-model",
-        instructions: "Use the email workflow when appropriate.",
-        enabledTools: ["n8n.trigger"],
+        instructions: "Use registered workflows.",
+        enabledTools: [],
+        permissions: [],
         configuration: {},
       },
-      input: "Send an email to abhinay200711@gmail.com",
+      input:
+        "Check is there any email I got from KYP Gamers today, if there is then reply to it",
       context: {
         workflowCatalog: [
           {
-            id: "workflow-email",
-            name: "Email Automation",
-            description: "Send an email.",
-            category: "automation",
+            id: "workflow-gmail",
+            name: "Gmail Workflow",
+            description: "Manage Gmail email.",
+            category: "productivity",
+            capabilities: ["email", "gmail", "search", "reply"],
             inputSchema: {
               type: "object",
               properties: {
-                to: { type: "string" },
-                subject: { type: "string" },
-                message: { type: "string" },
+                input: { type: "string" },
               },
-              required: ["to", "subject", "message"],
+              required: ["input"],
               additionalProperties: false,
             },
           },
@@ -1098,94 +1365,168 @@ describe("AgentRuntime tool capabilities", () => {
       },
     });
 
-    expect(result.metadata.inputRequired).toMatchObject({
-      workflowId: "workflow-email",
-      missingFields: ["message"],
-      validationErrors: ["arguments.message is required"],
-    });
+    expect(n8nTool.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          input: expect.stringContaining(
+            "Original user request (authoritative): Check is there any email I got from KYP Gamers today, if there is then reply to it",
+          ),
+        }),
+      }),
+      expect.anything(),
+    );
+    expect(n8nTool.execute.mock.calls[0][0].data.input).toContain(
+      "Execute prerequisite actions before evaluating whether dependent actions can proceed.",
+    );
+
+    expect(n8nTool.execute.mock.calls[0][0].data.input).toContain(
+      "For a search-then-action request, always perform the search first.",
+    );
+    expect(n8nTool.execute.mock.calls[0][0].data.input).toContain(
+      "Check is there any email I got from KYP Gamers today, if there is then reply to it",
+    );
+    expect(n8nTool.execute.mock.calls[0][0].data.input).not.toBe(
+      "Check for email from KYP Gamers on today's date",
+    );
     expect(result.toolCalls).toHaveLength(1);
-    expect(modelProvider.generate).toHaveBeenCalledTimes(1);
-    expect(n8nTool.execute).toHaveBeenCalledTimes(1);
   });
-  it("does not retry indefinitely when resumed input remains unresolved", async () => {
-    const n8nTool = {
-      name: "n8n.trigger",
-      description: "Trigger a registered workflow.",
-      schema: {
-        type: "object",
-        properties: {
-          workflowId: { type: "string" },
-          data: { type: "object", additionalProperties: true },
-        },
-        required: ["workflowId", "data"],
+
+  it("fails the execution when an n8n workflow explicitly reports failure", async () => {
+    const n8nTool = createN8nTool();
+    const registry = new ToolRegistry();
+    registry.register(n8nTool);
+    n8nTool.execute.mockResolvedValue({
+      success: false,
+      status: "FAILED",
+      error: {
+        code: "GMAIL_AUTH_REQUIRED",
+        message: "Gmail authorization is required.",
       },
-      execute: vi.fn().mockResolvedValue({
-        status: "INPUT_REQUIRED",
-        workflowId: "workflow-email",
-        workflowName: "Email Automation",
-        missingFields: ["message"],
-        validationErrors: ["arguments.message is required"],
+    });
+
+    const provider = {
+      generate: vi.fn().mockResolvedValue({
+        output: null,
+        toolCalls: [
+          {
+            id: "n8n-failure",
+            tool: "n8n.trigger",
+            arguments: {
+              workflowId: "workflow-gmail",
+              data: { input: "Check my email." },
+            },
+          },
+        ],
+        metadata: {},
       }),
     };
 
+    const runtime = new AgentRuntime(provider, registry);
+
+    await expect(
+      runtime.execute({
+        worker: {
+          model: "test-model",
+          instructions: "Use registered workflows.",
+          enabledTools: ["n8n.trigger"],
+          permissions: [],
+          configuration: {},
+        },
+        input: "Check my email.",
+        context: {
+          workflowCatalog: [
+            {
+              id: "workflow-gmail",
+              name: "Gmail Agent",
+              description: "Manage Gmail.",
+              category: "gmail",
+              capabilities: ["email", "search"],
+              inputSchema: {
+                type: "object",
+                properties: {
+                  input: { type: "string" },
+                },
+                required: ["input"],
+                additionalProperties: false,
+              },
+            },
+          ],
+        },
+      }),
+    ).rejects.toMatchObject({
+      code: "GMAIL_AUTH_REQUIRED",
+      category: "WORKFLOW_ERROR",
+    });
+  });
+
+  it("deterministically triggers a natural-language workflow when the model omits the tool call", async () => {
+    const n8nTool = createN8nTool();
     const registry = new ToolRegistry();
     registry.register(n8nTool);
 
-    const modelProvider = {
+    const provider = {
       generate: vi.fn().mockResolvedValue({
-        output: null,
-        toolCalls: [{
-          id: "resume-call-1",
-          tool: "n8n.trigger",
-          arguments: {
-            workflowId: "workflow-email",
-            data: { to: "user@example.com" },
-          },
-        }],
+        output: "I'll check your email.",
+        toolCalls: [],
+        metadata: {},
       }),
     };
 
-    const runtime = new AgentRuntime(modelProvider, registry);
+    n8nTool.schema.properties = {
+      workflowId: { type: "string" },
+      data: { type: "object", additionalProperties: true },
+    };
 
+    const runtime = new AgentRuntime(provider, registry);
     const result = await runtime.execute({
       worker: {
         model: "test-model",
-        instructions: "Send email using the registered workflow.",
-        enabledTools: ["n8n.trigger"],
-        permissions: ["n8n.trigger"],
-        workflowIds: ["workflow-email"],
+        instructions: "Use registered workflows.",
+        enabledTools: [],
+        permissions: [],
         configuration: {},
       },
-      input: `Original request:
-Send an email to user@example.com
-
-User provided additional information:
-Birthday wishes`,
+      input: "Check my email from KYP Gamers and reply to it.",
       context: {
-        workflowCatalog: [{
-          id: "workflow-email",
-          name: "Email Automation",
-          inputSchema: {
-            type: "object",
-            properties: {
-              to: { type: "string" },
-              message: { type: "string" },
+        workflowCatalog: [
+          {
+            id: "workflow-gmail",
+            name: "Gmail Agent",
+            description: "Manage messages in Gmail.",
+            category: "gmail",
+            capabilities: ["email", "inbox", "search", "reply"],
+            inputSchema: {
+              type: "object",
+              properties: {
+                input: { type: "string" },
+              },
+              required: ["input"],
+              additionalProperties: false,
             },
-            required: ["to", "message"],
           },
-        }],
-        explicitWorkflowInput: { message: "Birthday wishes" },
-        pendingWorkflowData: { to: "user@example.com" },
-        resumedFromExecutionId: "execution-123",
-        originalUserInput: `Send an email to user@example.com
-Birthday wishes`,
+        ],
+        workerId: "worker-123",
       },
     });
 
-    expect(result.success).toBe(true);
-    expect(result.metadata.inputRequired).toMatchObject({
-      missingFields: ["message"],
-    });
     expect(n8nTool.execute).toHaveBeenCalledTimes(1);
-    expect(modelProvider.generate).toHaveBeenCalledTimes(1);
+    expect(n8nTool.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflowId: "workflow-gmail",
+        data: expect.objectContaining({
+          input: expect.stringContaining(
+            "Original user request (authoritative): Check my email from KYP Gamers and reply to it.",
+          ),
+        }),
+      }),
+      expect.objectContaining({
+        workerId: "worker-123",
+      }),
+    );
+    expect(result.toolCalls).toHaveLength(1);
+    expect(result.toolCalls[0]).toMatchObject({
+      tool: "n8n.trigger",
+      status: "COMPLETED",
+    });
   });
+});

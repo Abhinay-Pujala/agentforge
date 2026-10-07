@@ -40,7 +40,7 @@ export async function getWorkerExecutionContext(firebaseUid, workerId) {
         owner: user._id,
         status: "enabled",
       })
-        .select("_id name description category status permissions inputSchema")
+        .select("_id name description category capabilities status permissions inputSchema")
         .lean()
     : [];
 
@@ -49,10 +49,22 @@ export async function getWorkerExecutionContext(firebaseUid, workerId) {
     name: workflow.name,
     description: workflow.description,
     category: workflow.category,
+    capabilities: workflow.capabilities || [],
     status: workflow.status,
     permissions: workflow.permissions || [],
     inputSchema: workflow.inputSchema || {},
   }));
+
+  if (workflowIds.length !== workflows.length) {
+    const loadedIds = new Set(workflows.map((workflow) => workflow._id.toString()));
+    const unavailableWorkflowIds = workflowIds.filter((id) => !loadedIds.has(id));
+    const error = new Error(
+      `One or more workflows assigned to this worker are unavailable: ${unavailableWorkflowIds.join(", ")}`,
+    );
+    error.code = "WORKFLOW_ASSIGNMENT_INVALID";
+    error.statusCode = 409;
+    throw error;
+  }
 
   return {
     user,

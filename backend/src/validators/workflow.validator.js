@@ -4,6 +4,10 @@ const workflowBody = z.object({
   name: z.string().trim().min(1).max(100),
   description: z.string().trim().min(1).max(300),
   category: z.string().trim().min(1).max(50),
+  capabilities: z
+    .array(z.string().trim().min(1).max(50))
+    .max(30)
+    .default([]),
   webhook: z.object({
     provider: z.literal("n8n"),
     url: z.string().trim().url(),
